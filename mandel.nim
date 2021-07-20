@@ -76,11 +76,11 @@ proc gen_pixel(m: Mandelbrot, i: int32, j: int32): uint32 =
             ix = k
             break
 
-    if ix >= m.iters:
-        result = uint32(0xff00_0000)
-    else:
-        result = uint32(0xff00_0000) or fire_pallete[((fire_pallete.len *
-                ix) div 50) %% fire_pallete.len]
+    result = if ix >= m.iters: uint32(0xff00_0000)
+             else: uint32(0xff00_0000) or fire_pallete[((fire_pallete.len *
+                     ix) div 50) %% fire_pallete.len]
+
+
 
 proc generate_st*(m: var Mandelbrot): void =
     m.image = newSeq[uint32](m.w * m.h)
@@ -92,7 +92,7 @@ proc gen_range(m: Mandelbrot, rfrom, rto: int32): seq[uint32] =
     for index in rfrom..<rto:
         result[index-rfrom] = m.gen_pixel(index div m.w, index %% m.w)
 
-proc gen_range_mt(m: Mandelbrot, i, n: int32, img : var seq[uint32]) : void =
+proc gen_range_mt(m: Mandelbrot, i, n: int32, img: var seq[uint32]): void =
     let
         size: int32 = (m.w * m.h)
         chunk_sz: int32 = size div n
@@ -108,14 +108,14 @@ proc gen_range_mt(m: Mandelbrot, i, n: int32, img : var seq[uint32]) : void =
 proc generate_mt*(m: var Mandelbrot): void =
     var img = newSeq[uint32](m.w * m.h)
     let ncpu: int32 = int32(countProcessors())
-       
+
     parallel:
         for i in 0..<ncpu:
             spawn m.gen_range_mt(i, ncpu, img)
 
     m.image = img
 
-proc write*(m : Mandelbrot, fn : string) = # write image to binary file
+proc write*(m: Mandelbrot, fn: string) = # write image to binary file
     var f = newFileStream(fn, fmWrite)
     if not f.isNil:
         for i in 0..<m.image.len:
@@ -125,9 +125,9 @@ proc write*(m : Mandelbrot, fn : string) = # write image to binary file
 # main
 
 when isMainModule:
-  
+
     proc mandelbrot(): void =
-        let w : int32 = 1920
+        let w: int32 = 1920
 
         var mandel = newMandelbrot(w, w, 200, complex64(0.5, 0), complex64(-2, 2))
 
@@ -146,4 +146,4 @@ when isMainModule:
 
     mandelbrot()
 
-    
+
