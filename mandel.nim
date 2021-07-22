@@ -2,7 +2,7 @@
 # compile w/ 
 # nim c --experimental --threads:on -d:release mandel.nim
 
-import complex, streams, times, threadpool, cpuinfo
+import sequtils, complex, streams, times, threadpool, cpuinfo
 
 const fire_pallete: array[256, uint32] = [uint32(0), 0, 4, 12, 16, 24, 32, 36,
         44, 48, 56, 64, 68, 76, 80,
@@ -54,11 +54,11 @@ type
 proc newMandelbrot*(w, h, iters: int32,
         center, range: Complex64): Mandelbrot =
     result = Mandelbrot(w: w, h: h, iters: iters, center: center, range: range)
-    result.image = newSeq[uint32](w*h)
 
 proc do_scale(m: Mandelbrot, cr: Complex64, i: int32, j: int32): Complex64 =
-    result = cr + complex64((m.range.im - m.range.re) * float64(i) / float64(
-            m.w), (m.range.im - m.range.re) * float64(j) / float64(m.h))
+    result = cr + complex64(
+        (m.range.im - m.range.re) * float64(i) / float64(m.w),
+        (m.range.im - m.range.re) * float64(j) / float64(m.h))
 
 proc gen_pixel(m: Mandelbrot, i: int32, j: int32): uint32 =
     let
@@ -76,50 +76,38 @@ proc gen_pixel(m: Mandelbrot, i: int32, j: int32): uint32 =
             ix = k
             break
 
-    result = if ix >= m.iters: uint32(0xff00_0000)
-             else: uint32(0xff00_0000) or fire_pallete[((fire_pallete.len *
+    result = if ix >= m.iters: 0xff00_0000u32
+             else: 0xff00_0000u32 or fire_pallete[((fire_pallete.len *
                      ix) div 50) %% fire_pallete.len]
 
 
-
 proc generate_st*(m: var Mandelbrot): void =
-    m.image = newSeq[uint32](m.w * m.h)
-    for index in 0..<m.w * m.h:
-        m.image[index] = m.gen_pixel(index div m.w, index %% m.w)
+    m.image = toSeq(0..<int(m.w * m.h)).
+        mapIt(m.gen_pixel(int32(it) div m.w, int32(it) %% m.w))
 
-proc gen_range(m: Mandelbrot, rfrom, rto: int32): seq[uint32] =
-    result = newSeq[uint32](rto-rfrom)
-    for index in rfrom..<rto:
-        result[index-rfrom] = m.gen_pixel(index div m.w, index %% m.w)
-
-proc gen_range_mt(m: Mandelbrot, i, n: int32, img: var seq[uint32]): void =
+# generate the chunk 'i' of 'n' -> img
+proc gen_range(m: var Mandelbrot, i, n: int32): void =
     let
         size: int32 = (m.w * m.h)
         chunk_sz: int32 = size div n
         rfrom = i * chunk_sz
-    var
-        rto = (i+1) * chunk_sz
-
-    if rto >= size: rto = size
+        rto = if (i+1) * chunk_sz > size: size else: (i+1) * chunk_sz
 
     for index in rfrom..<rto:
-        img[index] = m.gen_pixel(index div m.w, index %% m.w)
+        m.image[index] = m.gen_pixel(index %% m.w, index div m.w)
 
 proc generate_mt*(m: var Mandelbrot): void =
-    var img = newSeq[uint32](m.w * m.h)
-    let ncpu: int32 = int32(countProcessors())
+    m.image = newSeq[uint32](m.w * m.h)
+    let ncpus: int32 = int32(countProcessors())
 
     parallel:
-        for i in 0..<ncpu:
-            spawn m.gen_range_mt(i, ncpu, img)
-
-    m.image = img
+        for i in 0..<ncpus:
+            spawn m.gen_range(i, ncpus)
 
 proc write*(m: Mandelbrot, fn: string) = # write image to binary file
     var f = newFileStream(fn, fmWrite)
     if not f.isNil:
-        for i in 0..<m.image.len:
-            f.write(m.image[i])
+        f.writeData(m.image[0].unsafeAddr, m.image.len * sizeof(m.image[0]))
         f.close()
 
 # main
@@ -127,19 +115,24 @@ proc write*(m: Mandelbrot, fn: string) = # write image to binary file
 when isMainModule:
 
     proc mandelbrot(): void =
-        let w: int32 = 1920
+        let
+            w: int32 = 1920
+            iters: int32 = 200
+            center = complex64(0.5, 0)
+            rng = complex64(-2, 2)
 
-        var mandel = newMandelbrot(w, w, 200, complex64(0.5, 0), complex64(-2, 2))
+        echo "mandelbrot ",w,"x",w," iters:", iters
+        var mandel = newMandelbrot(w, w, iters, center, rng)
 
         # generate ST mode
         var t0 = now()
-        mandel.generate_st()
-        echo "mandel ST ", w, "x", w, " lap: ", now() - t0
+        # mandel.generate_st()
+        echo "ST lap: ", (now() - t0).inMilliseconds(), "ms"
 
         # MT parallel mode
         t0 = now()
         mandel.generate_mt()
-        echo "mandel MT ", w, "x", w, " lap: ", now() - t0
+        echo "MT lap: ", (now() - t0).inMilliseconds(), "ms"
 
         # write image to binary file
         mandel.write("mandel.bin")

@@ -5,7 +5,7 @@
 # nim c --threads:on --experimental sh.nim
 #
 
-import math, glm, sugar, streams, threadpool, cpuinfo, times
+import math, glm, sugar, streams, threadpool, cpuinfo, times, strformat
 
 # preset codes
 const SH_N_CODES = 647
@@ -536,24 +536,22 @@ proc generate_st(sh: var SphericalHarmonics): void = # single thread generator
         for index in 0..<sh.size:
             sh.gen_vertex(index)
 
-proc set_vertex(sh: SphericalHarmonics, i, n: int, shape: var seq[
-        Vertex]): void =
+proc set_vertex(sh: var SphericalHarmonics, i, n: int): void =
     let
         chunk_sz = sh.size div n
         rfrom = i * chunk_sz
         rto = if (i+1) * chunk_sz > sh.size: sh.size else: (i+1) * chunk_sz
 
     for index in rfrom..<rto:
-        shape[index] = sh.gen_vertex(index)
+        sh.shape[index] = sh.gen_vertex(index)
 
 proc generate_mt(sh: var SphericalHarmonics): void = # multithread generator
-    var shape = newSeq[Vertex](sh.size)
+    sh.shape = newSeq[Vertex](sh.size)
     let ncpus = countProcessors()
 
     parallel:
         for i in 0..ncpus:
-            spawn sh.set_vertex(i, ncpus, shape)
-    sh.shape = shape
+            spawn sh.set_vertex(i, ncpus)
 
 proc generate_faces(sh: var SphericalHarmonics): void =
     let n = sh.n
@@ -663,10 +661,10 @@ when isMainModule:
         code = 0
         color_map = 0
 
+    echo fmt("sh {resolution}x{resolution}={resolution*resolution}...")
     var sh = newSH(resolution, code, color_map)
 
-    echo "sh ", sh.n, "x", sh.n, "=", sh.size, " lap:", (now() -
-            t0).inMilliseconds(), "ms, writing .wrl..."
+    echo fmt("lap:{(now() - t0).inMilliseconds()}ms, writing .wrl...")
 
     sh.write_wrl("sh.wrl")
 
