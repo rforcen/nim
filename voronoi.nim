@@ -62,6 +62,14 @@ proc gen_image_mt(v: var Voronoi): void = # mt mode
         for i in 0..<ncpus:
             spawn v.set_chunk(i, ncpus)
 
+proc image_bytes(v:Voronoi):int {.inline.} = v.image.len * sizeof(v.image[0])
+
+proc write*(v: Voronoi, fn: string) = # write image to binary file
+    var f = newFileStream(fn, fmWrite)
+    if not f.isNil:
+        f.writeData(v.image[0].unsafeAddr, v.image_bytes)
+        f.close()
+
 proc newVoronoi*(w, h, n: int): Voronoi =
     randomize()
     result = Voronoi(w: w, h: h)
@@ -75,17 +83,10 @@ proc newVoronoi*(w, h, n: int): Voronoi =
     # st mode
     # result.gen_image()
 
-proc image_bytes(v:Voronoi):int {.inline.} = v.image.len * sizeof(v.image[0])
-
-proc write*(v: Voronoi, fn: string) = # write image to binary file
-    var f = newFileStream(fn, fmWrite)
-    if not f.isNil:
-        f.writeData(v.image[0].unsafeAddr, v.image_bytes)
-        f.close()
 
 when isMainModule:
     let
-        w = 800
+        w = 1000
         h = w
         n = w div 2
 
