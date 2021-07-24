@@ -4,7 +4,7 @@
 
 import sequtils, complex, streams, times, threadpool, cpuinfo
 
-const fire_pallete: array[256, uint32] = [uint32(0), 0, 4, 12, 16, 24, 32, 36,
+const fire_pallete: array[256, uint32] = [0'u32, 0, 4, 12, 16, 24, 32, 36,
         44, 48, 56, 64, 68, 76, 80,
  88, 96, 100, 108, 116, 120, 128, 132,
  140, 148, 152, 160, 164, 172, 180, 184, 192, 200, 1224, 3272, 4300, 6348, 7376,
@@ -47,28 +47,28 @@ const fire_pallete: array[256, uint32] = [uint32(0), 0, 4, 12, 16, 24, 32, 36,
 
 type
     Mandelbrot = object
-        w*, h*, iters: int32
+        w*, h*, iters: int
         center*, range*: Complex64
         image*: seq[uint32]
 
-proc newMandelbrot*(w, h, iters: int32,
+proc newMandelbrot*(w, h, iters: int,
         center, range: Complex64): Mandelbrot =
     result = Mandelbrot(w: w, h: h, iters: iters, center: center, range: range)
 
-proc do_scale(m: Mandelbrot, cr: Complex64, i: int32, j: int32): Complex64 =
-    result = cr + complex64(
-        (m.range.im - m.range.re) * float64(i) / float64(m.w),
-        (m.range.im - m.range.re) * float64(j) / float64(m.h))
+proc do_scale(m: Mandelbrot, cr: Complex, i: int, j: int): Complex =
+    result = cr + complex(
+        (m.range.im - m.range.re) * float(i) / float(m.w),
+        (m.range.im - m.range.re) * float(j) / float(m.h))
 
-proc gen_pixel(m: Mandelbrot, i: int32, j: int32): uint32 =
+proc gen_pixel(m: Mandelbrot, i: int, j: int): uint32 =
     let
-        scale = 0.8 * float64(m.w) / float64(m.h)
-        cr = complex64(m.range.re, m.range.re)
+        scale = 0.8 * float(m.w) / float(m.h)
+        cr = complex(m.range.re, m.range.re)
         c0 = scale * m.do_scale(cr, i, j) - m.center
 
     var
         z = c0
-        ix: int32 = m.iters
+        ix = m.iters
 
     for k in 0..<m.iters:
         z = z * z + c0; # z*z is the typical 2nd order fractal
@@ -76,29 +76,30 @@ proc gen_pixel(m: Mandelbrot, i: int32, j: int32): uint32 =
             ix = k
             break
 
-    result = if ix >= m.iters: 0xff00_0000u32
-             else: 0xff00_0000u32 or fire_pallete[((fire_pallete.len *
-                     ix) div 50) %% fire_pallete.len]
+    0xff00_0000'u32 or (
+        if ix >= m.iters: 0'u32
+        else: fire_pallete[((fire_pallete.len * ix) div 50) %% fire_pallete.len]
+    )
 
 
-proc generate_st*(m: var Mandelbrot): void =
+proc generate_st*(m: var Mandelbrot) =
     m.image = toSeq(0..<int(m.w * m.h)).
-        mapIt(m.gen_pixel(int32(it) div m.w, int32(it) %% m.w))
+        mapIt(m.gen_pixel(it div m.w, it %% m.w))
 
 # generate the chunk 'i' of 'n' -> img
-proc gen_range(m: var Mandelbrot, i, n: int32): void =
+proc gen_range(m: var Mandelbrot, i, n: int) =
     let
-        size: int32 = (m.w * m.h)
-        chunk_sz: int32 = size div n
+        size = m.w * m.h
+        chunk_sz = size div n
         rfrom = i * chunk_sz
         rto = if (i+1) * chunk_sz > size: size else: (i+1) * chunk_sz
 
     for index in rfrom..<rto:
         m.image[index] = m.gen_pixel(index %% m.w, index div m.w)
 
-proc generate_mt*(m: var Mandelbrot): void =
+proc generate_mt*(m: var Mandelbrot) =
     m.image = newSeq[uint32](m.w * m.h)
-    let ncpus: int32 = int32(countProcessors())
+    let ncpus = countProcessors()
 
     parallel:
         for i in 0..<ncpus:
@@ -114,14 +115,14 @@ proc write*(m: Mandelbrot, fn: string) = # write image to binary file
 
 when isMainModule:
 
-    proc mandelbrot(): void =
+    proc mandelbrot() =
         let
-            w: int32 = 1920
-            iters: int32 = 200
-            center = complex64(0.5, 0)
-            rng = complex64(-2, 2)
+            w = 1920
+            iters = 200
+            center = complex(0.5, 0.0)
+            rng = complex(-2.0, 2.0)
 
-        echo "mandelbrot ",w,"x",w," iters:", iters
+        echo "mandelbrot ", w, "x", w, " iters:", iters
         var mandel = newMandelbrot(w, w, iters, center, rng)
 
         # generate ST mode
