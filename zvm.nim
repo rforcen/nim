@@ -78,7 +78,7 @@ type Zvm* = object
     ident: string
     nval: float
     err: bool
-    code: seq[int]
+    code*: seq[int]
 
 
 
