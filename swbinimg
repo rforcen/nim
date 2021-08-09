@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+from PIL import Image
+import numpy as np
+from sys import argv
+
+# usage: swbinimg image_file
+raw_img = np.fromfile(argv[1],  dtype=np.uint8)
+l = int(np.sqrt(raw_img.shape[0]/4))  # for a l x l RGBA square image
+Image.frombytes(mode='RGBA', size=(l, l), data=raw_img).show()
