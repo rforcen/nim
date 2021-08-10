@@ -1,0 +1,13 @@
+// default
+
+const 	seconds=10, volume=0.4, 
+		f0=la, f1=Ø·f0, f14=f1/4, s3=[3], s2=[2], k0=0.6, k1=0.2,
+		f1=f0+2, fb=Ø·f1, fb4=fb/4;
+
+let ts3=τ+s3;
+
+~f0  ∿(f0/ts3 + {k0,f1}  ∿(f1/ts3 + {k1, f14}  { f14/(τ+s2)}));
+~f1  ∿(f1/ts3 + {k0,fb}  ∿(fb/ts3 + {k1, fb4}  { fb4/(τ+s2)}));
+
+
+

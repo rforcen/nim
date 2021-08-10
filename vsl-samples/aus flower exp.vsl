@@ -1,0 +1,13 @@
+// australian flower exp
+
+const seconds=6, volume=1, am=π, f=333.4, d=10, f1=411, rc=π, frc=f1+rc, ed=-0.070000, fd=f1/d;
+
+ ( 
+       {am}{  frc}  ∿((frc/  d)/(t+1)) + 
+ Ø     {am}{Ø frc}  ∿((frc Ø/d)/(t+1)) +
+ (Ø/π) {am}{2 frc}  ∿((frc 2/d)/(t+1)) );
+
+ ( 
+          {am} {f  } ∿((fd)/(t+1))   +
+ Ø        {am} {f Ø} ∿((fd Ø)/(t+1)) +
+ (Ø/π)    {am} {2 f} ∿((fd 2)/(t+1)) );

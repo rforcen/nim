@@ -1,0 +1,8 @@
+// bolw balance phi
+
+const f0=440, f1=293.7,delay=[3],bal=0.3;
+
+let td=t+delay, f0td=f0/td, f1td=∿(f1/td), pf1=Ø~f1 f1td, w1=(~f0 ∿(f0td + pf1));
+
+~bal       w1;
+(1 + ~bal) w1;

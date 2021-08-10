@@ -1,0 +1,5 @@
+// 3 voice rythm
+
+const a0=1/Ø, a1=Ø, f0=440, fd=f0/10, fam=3, a0f0=a0*f0, a1f0=a1*f0, seconds=8;
+
+{fam} ∿(fd/(τ+1)) * (a0{f0} + {a0f0} + a1{a1f0});

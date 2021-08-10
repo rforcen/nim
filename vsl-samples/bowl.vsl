@@ -1,0 +1,5 @@
+// bowl
+
+const seconds=5, f0=440, f1=293.7, delay=3;
+
+~f0 ∿(f0/(t+[delay]) + 0.6 ~f1  ∿(f1/(t+[delay]))); 

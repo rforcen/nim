@@ -1,0 +1,20 @@
+// bell 
+
+const volume=0.7, seconds=5, sample_rate=44100,
+	 f0=440, offset=1;
+
+func bp(f,x,y,z) ➡ z · ~(f·x) · exp(1-t·y);
+
+func bell(f) ➡ 
+ bp(f, 0.5,     0.075, 1)    +
+ bp(f, 1,       0.65,  1.35) +
+ bp(f, 1.7,     0.35,  1.67) +
+ bp(f, 1.19,    0.325, 2.67) +
+ bp(f, 2,       0.25,  1.46) +
+ bp(f, 2.74,    0.2,   1.33) +
+ bp(f, 3,       0.15,  1.33) +
+ bp(f, 3.75,    0.1,   0.75) +
+ bp(f, 4.07,    0.075, 1.33);
+
+bell(f0);
+bell(f0+offset);

@@ -1,0 +1,5 @@
+// 3 voice rythm-01 
+
+const l0=1/Ø, a1=Ø, f0=622, fd=10, fam=3, l0f0=l0*f0, a1f0=a1*f0, seconds=16, sample_rate=22050;
+
+{fam}sin(fd/(t+1)) * (l0{0.3, f0} + {l0f0} + a1{a1f0});

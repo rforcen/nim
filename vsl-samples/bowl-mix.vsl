@@ -1,0 +1,8 @@
+// bowl mix
+
+const 	seconds=8,
+		f0=440, f1=293.7, delay=[3], f0p=f0 Ø, k0=0.6;
+let t_delay=t+delay, f0_t_delay=f0/t_delay, wf0=~f0;         
+
+wf0 ∿(f0_t_delay + k0 ~f0p  ∿(f0p/t_delay +0.2·∿(t·f0p/2) · ∿((f0p/2)/t_delay)));
+wf0 ∿(f0_t_delay + k0 ~f1   ∿(f1/t_delay)); 

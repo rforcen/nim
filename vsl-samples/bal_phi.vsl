@@ -1,0 +1,12 @@
+// balance phi
+
+const 	f0=330, rc=3, k=-.3,
+		seconds = 5;
+		
+let f0rc=f0+rc;
+
+func bal_phi(x) ➡ ‹k›(∿(~x t)+Ø · ∿(~x t));
+
+bal_phi(f0rc);
+bal_phi(f0);
+

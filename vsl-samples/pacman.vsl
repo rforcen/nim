@@ -1,0 +1,6 @@
+// pac man
+const seconds=2;
+
+(osc(550*(t+1))+osc(550*phi*(t+0.1))+osc(750*phi*(t+1)));
+
+

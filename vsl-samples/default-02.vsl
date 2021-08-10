@@ -1,0 +1,10 @@
+// default-02
+
+const 	volume=0.2, seconds=10,
+		f0=440, f1=Ø·f0, 
+		delta=2, f01=f0+delta, f11=Ø f01;
+
+let w0=f0/(t+[3]), w1=f01/(t+[3]);
+
+~f0   ∿(w0 + ☯ f1);
+~f01  ∿(w1 + ☯ f11);
