@@ -4,7 +4,13 @@
 # opencl sources in cl folder
 #
 
-import yacl, sequtils, sugar, nimcl, times, zvm, random
+import yacl, sequtils, sugar, strutils, nimcl, times, zvm, random
+import pixie
+
+proc write_image*(fn:string, img:seq[uint32], w,h:int) =
+    let image = newImage(w, h)
+    image.data = cast[seq[ColorRGBX]](img)
+    image.writeFile(fn)
 
 # mandelbrot
 proc mandelbrot =
@@ -45,7 +51,7 @@ proc voronoi() =
     color, pad: uint32
 
   let
-    w = 800
+    w = 1024*2
     size = w*w
     n_points = w div 2
 
@@ -71,7 +77,7 @@ proc voronoi() =
   ocl.read(image, gpuImage)
   echo "generated fbi file lap: ", (now()-t0).inMilliseconds, "ms"
 
-  write_file(image, "cl-voronoi.bin")
+  write_image("cl-voronoi.png", image, w, w)
 
   # Clean up
   release(gpuImage)
@@ -117,7 +123,15 @@ proc domain_coloring_zvm =
     code = zvm.code # int is 64 bit
     ocl = nvidiaDevice()
 
-  ocl.compile(readFile("cl/dc_zvm.cl"), "domain_coloring")
+  let real_def = """
+    // define real, real2, real3 types
+    typedef _fp_  real;
+    typedef _fp_2 real2;
+    typedef _fp_3 real3;
+
+  """.multiReplace(("_fp_","float"))
+
+  ocl.compile(real_def & readFile("cl/dc_zvm.cl"), "domain_coloring")
 
   let
     gpuImage = ocl.buffer(image)
@@ -169,8 +183,8 @@ proc spherical_harmonics =
 
 
 when isMainModule:
-  mandelbrot()
+  # mandelbrot()
   voronoi()
-  domain_coloring()
-  domain_coloring_zvm()
-  spherical_harmonics()
+  # domain_coloring()
+  # domain_coloring_zvm()
+  # spherical_harmonics()

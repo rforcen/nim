@@ -3,6 +3,8 @@
 # nim c --experimental --threads:on -d:release mandel.nim
 
 import sequtils, complex, streams, times, threadpool, cpuinfo
+import pixie
+import par
 
 const fire_pallete: array[256, uint32] = [0'u32, 0, 4, 12, 16, 24, 32, 36,
         44, 48, 56, 64, 68, 76, 80,
@@ -43,6 +45,7 @@ const fire_pallete: array[256, uint32] = [0'u32, 0, 4, 12, 16, 24, 32, 36,
  88, 84, 80, 76,
  72, 68, 64, 60, 56, 52, 48, 44, 40, 36, 32, 28, 24, 20, 16, 12, 8, 0, 0]
 
+
 # mandelbrot object
 
 type
@@ -55,10 +58,12 @@ proc newMandelbrot*(w, h, iters: int,
         center, range: Complex64): Mandelbrot =
     result = Mandelbrot(w: w, h: h, iters: iters, center: center, range: range)
 
+proc size(m:Mandelbrot):int=m.w * m.h
+
 proc do_scale(m: Mandelbrot, cr: Complex, i: int, j: int): Complex =
     result = cr + complex(
-        (m.range.im - m.range.re) * float(i) / float(m.w),
-        (m.range.im - m.range.re) * float(j) / float(m.h))
+        (m.range.im - m.range.re) * i.float / float(m.w),
+        (m.range.im - m.range.re) * j.float / float(m.h))
 
 proc gen_pixel(m: Mandelbrot, i: int, j: int): uint32 =
     let
@@ -81,6 +86,48 @@ proc gen_pixel(m: Mandelbrot, i: int, j: int): uint32 =
         else: fire_pallete[((fire_pallete.len * ix) div 50) %% fire_pallete.len]
     )
 
+# parallel generation using par_apply
+
+proc gen_par*(m:var Mandelbrot) =
+    let # local m parameters used in gen_pixel call
+        w = m.w
+        h = m.h
+
+        iters = m.iters
+        range = m.range
+        center = m.center
+
+    proc gen_pixel(item: int): uint32 =
+        let
+            i = item div w
+            j = item %% w
+            iw = i.float / w.float
+            jh = j.float / h.float
+            scale = 0.8 * w.float / h.float
+            cr = complex(range.re, range.re)
+            
+        proc do_scale(cr: Complex): Complex =
+            result = cr + complex( (range.im - range.re) * iw, (range.im - range.re) * jh)
+
+        var
+            c0 = scale * do_scale(cr) - center
+            z = c0
+            ix = iters
+
+        for k in 0..<iters:
+            z = z * z + c0; # z*z is the typical 2nd order fractal
+            if z.abs2() > 4.0:
+                ix = k
+                break
+
+        0xff00_0000'u32 or (
+            if ix >= iters: 0'u32
+            else: fire_pallete[((fire_pallete.len * ix) div 50) %% fire_pallete.len]
+        )
+    
+
+    m.image = newSeq[uint32](m.size)
+    par_apply(m.image, gen_pixel)
 
 proc generate_st*(m: var Mandelbrot) =
     m.image = toSeq(0..<int(m.w * m.h)).
@@ -88,17 +135,12 @@ proc generate_st*(m: var Mandelbrot) =
 
 # generate the chunk 'i' of 'n' -> img
 proc gen_range(m: var Mandelbrot, i, n: int) =
-    let
-        size = m.w * m.h
-        chunk_sz = size div n
-        rfrom = i * chunk_sz
-        rto = if (i+1) * chunk_sz > size: size else: (i+1) * chunk_sz
-
-    for index in rfrom..<rto:
+    for index in chunk_range(m.image.len, i, n):
         m.image[index] = m.gen_pixel(index %% m.w, index div m.w)
 
 proc generate_mt*(m: var Mandelbrot) =
-    m.image = newSeq[uint32](m.w * m.h)
+    
+    m.image = newSeq[uint32](m.size)
     let ncpus = countProcessors()
 
     parallel:
@@ -110,6 +152,11 @@ proc write*(m: Mandelbrot, fn: string) = # write image to binary file
     if not f.isNil:
         f.writeData(m.image[0].unsafeAddr, m.image.len * sizeof(m.image[0]))
         f.close()
+
+proc write_image*(m:Mandelbrot, fn:string) =
+    let image = newImage(m.w, m.h)
+    image.data = cast[seq[ColorRGBX]](m.image)
+    image.writeFile(fn)
 
 # main
 
@@ -124,19 +171,25 @@ when isMainModule:
 
         echo "mandelbrot ", w, "x", w, " iters:", iters
         var mandel = newMandelbrot(w, w, iters, center, rng)
+        var t0 = now()
 
         # generate ST mode
-        var t0 = now()
         # mandel.generate_st()
-        echo "ST lap: ", (now() - t0).inMilliseconds(), "ms"
+        # echo "ST lap: ", (now() - t0).inMilliseconds(), "ms"
 
         # MT parallel mode
+        # t0 = now()
+        # mandel.generate_mt()
+        # echo "MT lap: ", (now() - t0).inMilliseconds(), "ms"
+
+        # par mode
         t0 = now()
-        mandel.generate_mt()
-        echo "MT lap: ", (now() - t0).inMilliseconds(), "ms"
+        mandel.gen_par()
+        echo "par lap: ", (now() - t0).inMilliseconds(), "ms"
 
         # write image to binary file
-        mandel.write("mandel.bin")
+        # mandel.write("mandel.bin")
+        mandel.write_image("mandel.png")
 
     mandelbrot()
 

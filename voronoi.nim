@@ -3,6 +3,8 @@
 #
 
 import random, sequtils, sugar, streams, times, threadpool, cpuinfo, strformat
+import pixie
+import par
 
 type
     Point = object
@@ -38,7 +40,7 @@ proc gen_pixel(v: Voronoi, i, j: int): uint32 =
     0xff00_0000'u32 or
         (if is_center: 0'u32 else: v.points[ind].color)
 
-proc gen_image(v: var Voronoi) = # st mode
+proc gen_image*(v: var Voronoi) = # st mode
     v.image = collect(newSeq):
         for i in 0..<v.w:
             for j in 0..<v.h:
@@ -46,12 +48,7 @@ proc gen_image(v: var Voronoi) = # st mode
 
 # set image chunk from..to
 proc set_chunk(v: var Voronoi, i, n: int) =
-    let
-        chunk_sz = v.size div n
-        rfrom = i * chunk_sz
-        rto = if (i+1) * chunk_sz > v.size: v.size else: (i+1) * chunk_sz
-
-    for index in rfrom..<rto:
+    for index in chunk_range(v.image.len, i, n):
         v.image[index] = v.gen_pixel(index %% v.w, index div v.w)
 
 proc gen_image_mt(v: var Voronoi) = # mt mode
@@ -83,6 +80,10 @@ proc newVoronoi*(w, h, n: int): Voronoi =
     # st mode
     # result.gen_image()
 
+proc write_image*(m:Voronoi, fn:string) =
+    let image = newImage(m.w, m.h)
+    image.data = cast[seq[ColorRGBX]](m.image)
+    image.writeFile(fn)
 
 when isMainModule:
     let
@@ -97,4 +98,4 @@ when isMainModule:
 
     echo fmt("lap:{(now()-t0).inMilliseconds()}ms")
 
-    voronoi.write("voronoi.bin")
+    voronoi.write_image("voronoi.png")

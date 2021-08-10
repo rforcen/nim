@@ -3,6 +3,8 @@
 
 
 import math, complex, zvm, streams, threadpool, cpuinfo
+import pixie
+import par
 
 type DomainColoring = object
     w: int
@@ -78,14 +80,13 @@ proc write*(dc: DomainColoring, fn: string) = # write image to binary file
         f.close()
 
 proc gen_range(dc: var DomainColoring, i, n: int) =
-    let
-        size = (dc.w * dc.h)
-        chunk_sz = size div n
-        rfrom = i * chunk_sz
-        rto = if (i+1) * chunk_sz > size: size else: (i+1) * chunk_sz
-
-    for index in rfrom..<rto:
+    for index in chunk_range(dc.image.len, i, n):
         dc.image[index] = gen_pixel(dc.zvm, index, dc.w, dc.h)
+
+proc write_image*(dc : DomainColoring, fn:string) =
+    let image = newImage(dc.w, dc.h)
+    image.data = cast[seq[ColorRGBX]](dc.image)
+    image.writeFile(fn)
 
 proc newDC(w, h: int, zexpr: string): DomainColoring =
     result = DomainColoring(w: w, h: h, zvm: newZvm(zexpr))
@@ -112,4 +113,4 @@ when isMainModule:
     let dc = newDC(w, w, zexpr)
     echo "lap: ", (now()-t).inMilliseconds(), "ms"
 
-    dc.write("dc.bin")
+    dc.write_image("dc.png")
