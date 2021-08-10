@@ -24,18 +24,22 @@ proc chunk_ranges*(size, n : int):seq[Slice[int]]= # Create the result and calcu
         result[i] = first ..< last
         first = last
 
-proc par_apply*[T](v:var seq[T], fnc:proc(i:int):T)= # single 'i' index
-  proc chunk_apply(fnc:proc(i:int):T, chunk:Slice[int], v:var seq[T]) = 
-     for index in chunk: 
-        v[index] = fnc(index) 
-  
-  let 
+template par_exec() =
+    let 
       nth = countProcessors()
       chunks = chunk_ranges(v.len, nth)
 
-  parallel:
-    for i in 0..<nth:
-      spawn chunk_apply(fnc, chunks[i], v)
+    parallel:
+        for i in 0..<nth:
+          spawn chunk_apply(fnc, chunks[i], v)
+
+proc par_apply*[T](v:var seq[T], fnc:proc(i:int):T)= # single 'i' index
+
+  proc chunk_apply(fnc:proc(i:int):T, chunk:Slice[int], v:var seq[T]) = 
+     for index in chunk: 
+        v[index] = fnc(index) 
+
+  par_exec()
 
 proc par_apply*[T](v:var seq[T], fnc:proc(t, i:int):T)= # 't' thread number, 'i' index
 
@@ -43,13 +47,7 @@ proc par_apply*[T](v:var seq[T], fnc:proc(t, i:int):T)= # 't' thread number, 'i'
      for index in chunk: 
         v[index] = fnc(t, index) 
 
-  let 
-      nth = countProcessors()
-      chunks = chunk_ranges(v.len, nth)
-
-  parallel:
-    for i in 0..<nth:
-      spawn chunk_apply(fnc, chunks[i], v)
+  par_exec()
 
 when isMainModule:
     for r in chunk_ranges(7, 3):
