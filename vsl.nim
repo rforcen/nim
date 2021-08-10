@@ -3,7 +3,8 @@
 import strutils, strformat, unicode, math,
        streams, sugar, sequtils, times, threadpool, cpuinfo, os
 
-import vsl_scanner, vsl_compiler;
+import vsl_scanner, vsl_compiler
+import par
 
 
 type VSL = object
@@ -201,17 +202,12 @@ proc generate_st*(vsl: var VSL, expr: string): bool =
     false
 
 # multithread mt support
-proc gen_chunk(vsl: var VSL, i, n: int, samples: var seq[float32],
+proc gen_chunk(vsl: var VSL, i:int, chunk:Slice[int], samples: var seq[float32],
     min_max: var seq[(float32, float32)]) = # min, max
-  let
-    size = samples.len
-    chunk_sz = size div n
-    rfrom = i * chunk_sz
-    rto = if (i+1) * chunk_sz > size: size else: (i+1) * chunk_sz
 
   var (maxv, minv) = (-high(float32), high(float32))
 
-  for index in rfrom..<rto:
+  for index in chunk:
     let
       t = (index div vsl.n_chan).float * vsl.time_inc
       chan = index %% vsl.n_chan
@@ -252,8 +248,8 @@ proc generate_mt*(vsl: var VSL, expr: string): bool =
       min_max = newSeq[(float32, float32)](nth)
 
     parallel:
-      for i in 0..<nth:
-        spawn vs[i].gen_chunk(i, nth, samples, min_max)
+      for i, chunk in chunk_ranges(samples.len, nth):
+        spawn vs[i].gen_chunk(i, chunk, samples, min_max)
 
     normalize(samples, min_max, vsl.volume.float32)
 
