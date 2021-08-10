@@ -49,7 +49,7 @@ proc par_apply*[T](v:var seq[T], fnc:proc(t, i:int):T)= # 't' thread number, 'i'
 
   parallel:
     for i in 0..<nth:
-      spawn chunk_apply(fnc, i, nth, v)
+      spawn chunk_apply(fnc, chunks[i], v)
 
 when isMainModule:
     for r in chunk_ranges(7, 3):
