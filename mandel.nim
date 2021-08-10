@@ -134,18 +134,20 @@ proc generate_st*(m: var Mandelbrot) =
         mapIt(m.gen_pixel(it div m.w, it %% m.w))
 
 # generate the chunk 'i' of 'n' -> img
-proc gen_range(m: var Mandelbrot, i, n: int) =
-    for index in chunk_range(m.image.len, i, n):
+proc gen_range(m: var Mandelbrot, chunk:Slice[int]) =
+    for index in chunk:
         m.image[index] = m.gen_pixel(index %% m.w, index div m.w)
 
 proc generate_mt*(m: var Mandelbrot) =
     
     m.image = newSeq[uint32](m.size)
-    let ncpus = countProcessors()
+    let 
+        ncpus = countProcessors()
+        chunks = chunk_ranges(m.size, ncpus)    
 
     parallel:
         for i in 0..<ncpus:
-            spawn m.gen_range(i, ncpus)
+            spawn m.gen_range(chunks[i])
 
 proc write*(m: Mandelbrot, fn: string) = # write image to binary file
     var f = newFileStream(fn, fmWrite)
