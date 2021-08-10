@@ -79,8 +79,8 @@ proc write*(dc: DomainColoring, fn: string) = # write image to binary file
         f.writeData(dc.image[0].unsafeAddr, dc.image.len * sizeof(dc.image[0]))
         f.close()
 
-proc gen_range(dc: var DomainColoring, i, n: int) =
-    for index in chunk_range(dc.image.len, i, n):
+proc gen_range(dc: var DomainColoring, chunk: Slice[int]) =
+    for index in chunk:
         dc.image[index] = gen_pixel(dc.zvm, index, dc.w, dc.h)
 
 proc write_image*(dc : DomainColoring, fn:string) =
@@ -95,10 +95,12 @@ proc newDC(w, h: int, zexpr: string): DomainColoring =
     # for i in 0..w*h: # ST mode
     #     result.image[i] = gen_pixel(result.zvm, i, w, h)
 
-    let ncpus = countProcessors() # calc in parallel MT using all cpus available
+    let 
+        ncpus = countProcessors()
+
     parallel:
-        for i in 0..<ncpus:
-            spawn result.gen_range(i, ncpus)
+        for chunk in chunk_ranges(result.image.len, ncpus):
+            spawn result.gen_range(chunk)
 
 when isMainModule:
     import times
