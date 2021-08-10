@@ -30,8 +30,8 @@ template par_exec() =
       chunks = chunk_ranges(v.len, nth)
 
     parallel:
-        for i in 0..<nth:
-          spawn chunk_apply(fnc, chunks[i], v)
+        for chunk in chunks:
+          spawn chunk_apply(fnc, chunk, v)
 
 proc par_apply*[T](v:var seq[T], fnc:proc(i:int):T)= # single 'i' index
 
@@ -50,6 +50,8 @@ proc par_apply*[T](v:var seq[T], fnc:proc(t, i:int):T)= # 't' thread number, 'i'
   par_exec()
 
 when isMainModule:
+    import sugar
+
     for r in chunk_ranges(7, 3):
         echo r, " ", r.len
 
@@ -57,11 +59,11 @@ when isMainModule:
     const n=100000
     var v=newSeq[int](n)
 
-    par_apply(v, proc(i:int):int=i) # set all to i
+    par_apply(v, i => i) # set all to i
     echo v[0..5], v[^5..^1]
     
     assert v[0..3] == @[0,1,2,3] and v[^1]==n-1
 
-    v.par_apply(proc(i:int):int=i*2) # set all to i*2
+    v.par_apply(x => x*2) # set all to i*2
     echo v[0..5], v[^5..^1]
     
