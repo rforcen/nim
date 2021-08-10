@@ -141,13 +141,10 @@ proc gen_range(m: var Mandelbrot, chunk:Slice[int]) =
 proc generate_mt*(m: var Mandelbrot) =
     
     m.image = newSeq[uint32](m.size)
-    let 
-        ncpus = countProcessors()
-        chunks = chunk_ranges(m.size, ncpus)    
 
     parallel:
-        for i in 0..<ncpus:
-            spawn m.gen_range(chunks[i])
+        for chunk in chunk_ranges(m.size, countProcessors()):
+            spawn m.gen_range(chunk)
 
 proc write*(m: Mandelbrot, fn: string) = # write image to binary file
     var f = newFileStream(fn, fmWrite)
