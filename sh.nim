@@ -6,6 +6,7 @@
 #
 
 import math, glm, sugar, streams, threadpool, cpuinfo, times, strformat
+import par
 
 # preset codes
 const SH_N_CODES = 647
@@ -531,29 +532,24 @@ proc gen_vertex(sh: SphericalHarmonics, index: int): Vertex =
     Vertex(position: position, normal: normal, color: color,
             texture: texture)
 
-proc generate_st(sh: var SphericalHarmonics): void = # single thread generator
+proc generate_st(sh: var SphericalHarmonics) = # single thread generator
     sh.shape = collect(newSeq):
         for index in 0..<sh.size:
             sh.gen_vertex(index)
 
-proc set_vertex(sh: var SphericalHarmonics, i, n: int): void =
-    let
-        chunk_sz = sh.size div n
-        rfrom = i * chunk_sz
-        rto = if (i+1) * chunk_sz > sh.size: sh.size else: (i+1) * chunk_sz
-
-    for index in rfrom..<rto:
+proc set_vertex(sh: var SphericalHarmonics, chunk:Slice[int]) =
+   
+    for index in chunk:
         sh.shape[index] = sh.gen_vertex(index)
 
-proc generate_mt(sh: var SphericalHarmonics): void = # multithread generator
+proc generate_mt(sh: var SphericalHarmonics) = # multithread generator
     sh.shape = newSeq[Vertex](sh.size)
-    let ncpus = countProcessors()
 
     parallel:
-        for i in 0..ncpus:
-            spawn sh.set_vertex(i, ncpus)
+        for chunk in chunk_ranges(sh.size, countProcessors()):
+            spawn sh.set_vertex(chunk)
 
-proc generate_faces(sh: var SphericalHarmonics): void =
+proc generate_faces(sh: var SphericalHarmonics) =
     let n = sh.n
     for i in 0..<n - 1:
         for j in 0..<n - 1:
@@ -574,13 +570,13 @@ proc newSH*(n: int, code: int, color_map: int): SphericalHarmonics =
     result.generate_mt()
     result.generate_faces()
 
-proc print(sh: SphericalHarmonics): void =
+proc print(sh: SphericalHarmonics) =
     for v in sh.shape:
         echo v.position, v.normal, v.color, v.texture
     for face in sh.faces:
         echo face
 
-proc write_wrl(sh: SphericalHarmonics, name: string): void =
+proc write_wrl(sh: SphericalHarmonics, name: string) =
     var f = newFileStream(name, fmWrite)
 
 
