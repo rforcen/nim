@@ -1,10 +1,10 @@
 # poly_common.nim
 
 import random, sugar, math, tables, sequtils, streams, strutils
+import vertex
 
 type
-    Vertex* = array[3, float]
-    Color = Vertex
+    Color* = Vertex
     Vertexes* = seq[Vertex]
     Colors* = seq[Color]
     Face* = seq[int]
@@ -21,53 +21,15 @@ type Johnsons* = object
     faces*: Faces
     vertex*: Vertexes
 
-# vertex ops
-
-proc cross*(v0, v1: Vertex): Vertex {.inline.} = [(v0[1] * v1[2]) - (v0[2] * v1[
-        1]), (v0[2] * v1[0]) - (v0[0] * v1[2]), (v0[0] * v1[1]) - (v0[1] * v1[0])]
-
-proc dot*(v0, v1: Vertex): float {.inline.} = v0[0]*v1[0]+v0[1]*v1[1]+v0[2]*v1[2]
-proc distance_squared*(v0, v1: Vertex): float {.inline.} = dot(v0,v1)
-proc distance*(v0, v1: Vertex): float {.inline.} = dot(v0, v1).sqrt
-
-proc `+`*(v0, v1: Vertex): Vertex {.inline.} = [v0[0]+v1[0], v0[1]+v1[1], v0[
-        2]+v1[2]]
-proc `-`*(v0, v1: Vertex): Vertex {.inline.} = [v0[0]-v1[0], v0[1]-v1[1], v0[
-        2]-v1[2]]
-proc `-`*(v:Vertex) : Vertex = [-v[0], -v[1], -v[2]]
-proc `*`*(v0: Vertex, f: float): Vertex {.inline.} = [v0[0]*f, v0[1]*f, v0[2]*f]
-proc `/`*(v0: Vertex, c: float): Vertex {.inline.} = [v0[0]/c, v0[1]/c, v0[2]/c]
-proc `/=`*(v0: var Vertex, c: float) {.inline.} = 
-    v0[0]/=c
-    v0[1]/=c
-    v0[2]/=c
-proc `+=`*(v0: var Vertex, v1: Vertex) {.inline.} = 
-    v0[0]+=v1[0]
-    v0[1]+=v1[1]
-    v0[2]+=v1[2]
 
 proc `-`*(vs:var Vertexes) : Vertexes = 
     for v in vs.mitems: v = -v
-
-proc max_abs*(v:Vertex):float = v[0].abs.max(v[1].abs.max(v[2].abs))
-proc normal*(v0, v1, v2: Vertex): Vertex {.inline.} = cross(v1 - v0, v2 - v1)
-
-proc unit*(v: Vertex): Vertex {.inline.} =
-    if v == [0.0, 0.0, 0.0]: v
-    else: v / dot(v, v).sqrt
+    vs
 
 proc centroid*(p: Polyhedron, face: Face): Vertex =
     var centroid: Vertex # calc centroid of face
     for ic in face: centroid += p.vertex[ic]
     centroid / face.len.float
-
-proc midpoint*( vec1, vec2 : Vertex) : Vertex = (vec1 + vec2) / 2.0
-
-proc tween*(v1, v2 : Vertex, t : float) : Vertex  =
-    (v1 * (1.0 - t) ) + (v2 * t)
-
-proc oneThird*(v1, v2 : Vertex) : Vertex =
-    tween(v1, v2, 1.0 / 3.0)
 
 proc intersect*(set1, set2, set3 : Face) : int = 
   for s1 in set1:
@@ -272,19 +234,21 @@ proc range(left, right: int, inclusive: bool): Face =
     else: toSeq(countdown(left, if inclusive: right else: right+1))
 
 proc normalize*(poly: var Polyhedron): Polyhedron =
-    var max = poly.vertex[0][0]
-    for v in poly.vertex: max = max(max, max_abs(v))
+    if poly.vertex.len>0:
+        var max = poly.vertex[0][0]
+        for v in poly.vertex: max = max(max, max_abs(v))
 
-    if max != 0.0:
-        for v in poly.vertex.mitems:
-            v /= max
+        if max != 0.0:
+            for v in poly.vertex.mitems:
+                v /= max
     poly
 
 # calc poly terms
 proc calc_normals*(p: Polyhedron):Vertexes=
     collect(newSeq):
         for face in p.faces:
-            normal(p.vertex[face[0]], p.vertex[face[1]], p.vertex[face[2]])
+            if face.len > 2: normal(p.vertex[face[0]], p.vertex[face[1]], p.vertex[face[2]])
+            else: zeroVertex
 
 proc calc_avg_normals*(p:Polyhedron):Vertexes=
     collect(newSeq):
@@ -303,22 +267,24 @@ proc calc_avg_normals*(p:Polyhedron):Vertexes=
             unit(normalV)
 
 proc calc_areas*(p:Polyhedron):seq[float]=
-    var max_area = -1.0
+    var max_area = 0.0
     var areas = collect(newSeq):
         for index, (face, normal) in zip(p.faces, p.normals):
-            var
-                vsum: Vertex
-                v1 = p.vertex[face[^2]]
-                v2 = p.vertex[face[^1]]
+            if face.len > 2:
+                var
+                    vsum: Vertex
+                    v1 = p.vertex[face[^2]]
+                    v2 = p.vertex[face[^1]]
 
-            for ix in face:
-                vsum += cross(v1, v2)
-                v1 = v2
-                v2 = p.vertex[ix];
+                for ix in face:
+                    vsum += cross(v1, v2)
+                    v1 = v2
+                    v2 = p.vertex[ix];
 
-            let area = abs(dot(p.normals[index], vsum)) / 2.0
-            max_area = max_area.max(area)
-            area
+                let area = abs(dot(p.normals[index], vsum)) / 2.0
+                max_area = max_area.max(area)
+                area
+            else: 0.0
 
     if max_area!=0.0: # scale to max
         for a in areas.mitems: a /= max_area
@@ -330,6 +296,11 @@ proc calc_centers*(p:Polyhedron):Vertexes=
             var fcenter: Vertex # average vertex coords
             for ic in face: fcenter += p.vertex[ic]
             fcenter / face.len.float #  return face - ordered array  of  centroids
+
+proc check*(p:Polyhedron):bool=
+    for face in p.faces:
+        if face.len < 3: return false
+    true
 
 # set poly 
 proc set_normals*(p: var Polyhedron) =

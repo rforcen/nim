@@ -1,5 +1,5 @@
 #   johnson polygon
-import poly_common
+import common
 
 const johnsons*: array[92, Johnsons] = [
   Johnsons(i: 1,

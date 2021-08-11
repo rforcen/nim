@@ -1,7 +1,7 @@
 # polyhedron conway tr_tab
 
-import algorithm, sequtils, tables, strutils
-import common, flag
+import algorithm, sequtils, tables
+import common, flag, vertex
 
 
 #[ Kis(N)
@@ -40,11 +40,14 @@ proc kisN*(p: Polyhedron; n:int=0; apexdist:float=0.1) : Polyhedron =
     flag.toPolyhedron("k" & (if n==0:"" else: $n) & p.name)
 
 proc ambo*(p:Polyhedron) : Polyhedron =
+    if not p.check: return p
+
     const 
         DUAL='d'.toToken
         ORIG='o'.toToken
 
     var flag : Flag
+        
 
     for i, face in p.faces:
         var
@@ -70,6 +73,8 @@ proc ambo*(p:Polyhedron) : Polyhedron =
     flag.toPolyhedron("a" & p.name)
 
 proc gyro*(p:Polyhedron) : Polyhedron =
+    if not p.check: return p
+
     const 
         CNTR = 'c'.toToken
 
@@ -99,6 +104,8 @@ proc gyro*(p:Polyhedron) : Polyhedron =
     flag.toPolyhedron("g" & p.name)
 
 proc propellor*(p:Polyhedron):Polyhedron=
+    if not p.check: return p
+
     var flag:Flag
 
     flag.add_vertexes(p.vertex) 
@@ -120,32 +127,44 @@ proc propellor*(p:Polyhedron):Polyhedron=
     flag.toPolyhedron("p" & p.name)
 
 proc reflection*(p:Polyhedron):Polyhedron=
+    if not p.check: return p
+
     var poly=p
 
     poly.vertex = -poly.vertex
     for face in poly.faces.mitems: face.reverse
 
-    poly.name &= "r"
+    poly.name = "r" & poly.name
     poly
 
 proc dual*(p:Polyhedron):Polyhedron=
+    if not p.check: return p
+    
     let 
         face_map = gen_face_map(p)
         centers = p.get_centers
 
-    var flag : Flag
+    var 
+        flag : Flag
+        ok = true
 
     for i, face in p.faces:
         flag.add_vertex(i4(i), centers[i], with_unit=false)
 
         var v1 = face[^1]
         for v2 in face:
-            flag.add_face(i4(v1), i4(face_map[i4(v2, v1)]), i4(i));
-            v1 = v2
+            if face.len>2 and i4(v2, v1) in face_map:
+                flag.add_face(i4(v1), i4(face_map[i4(v2, v1)]), i4(i));
+                v1 = v2
+            else: ok=false
 
-    flag.toPolyhedron("d" & p.name)
+    if ok:  flag.toPolyhedron("d" & p.name)
+    else: p
 
 proc chamfer*(p:Polyhedron, dist : float = 0.5):Polyhedron=
+    if not p.check: return p
+    
+
     let normals = p.get_normals
     var flag : Flag
 
@@ -172,6 +191,9 @@ proc chamfer*(p:Polyhedron, dist : float = 0.5):Polyhedron=
     flag.toPolyhedron("c" & p.name)
 
 proc whirl*(p:Polyhedron):Polyhedron=
+    if not p.check: return p
+    
+
     var flag:Flag
     flag.add_vertexes(p.vertex)
     let centers = p.get_centers
@@ -202,6 +224,8 @@ proc whirl*(p:Polyhedron):Polyhedron=
     flag.toPolyhedron("w" & p.name)
 
 proc quinto*(p:Polyhedron):Polyhedron=
+    if not p.check: return p
+
     var flag:Flag
 
     let centers=p.get_centers
@@ -248,6 +272,8 @@ proc quinto*(p:Polyhedron):Polyhedron=
     flag.toPolyhedron("q" & p.name)
 
 proc insetN*(p:Polyhedron, n:int=0, inset_dist:float=0.3, popout_dist:float = -0.1):Polyhedron=
+    if not p.check: return p
+    
     var flag:Flag
     flag.add_vertexes(p.vertex, with_unit=false)
 
@@ -291,6 +317,8 @@ proc loft*(p:Polyhedron, n:int = 0, alpha : float = 0.1):Polyhedron=
     poly
 
 proc hollow*(p:Polyhedron, inset_dist : float = 0.3, thickness : float = 0.1):Polyhedron=
+    if not p.check: return p
+    
     var flag:Flag
     flag.add_vertexes(p.vertex, with_unit=false)
 
@@ -312,6 +340,9 @@ proc hollow*(p:Polyhedron, inset_dist : float = 0.3, thickness : float = 0.1):Po
     flag.toPolyhedron(newname = "H" & p.name)
 
 proc perspectiva1*(p:Polyhedron):Polyhedron=
+
+    if not p.check: return p
+
     var flag:Flag
     flag.add_vertexes(p.vertex, with_unit=false)
 

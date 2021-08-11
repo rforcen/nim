@@ -2,15 +2,24 @@
 import sequtils, random, strformat, times
 import opengl/glut, opengl, opengl/glu
 
-import common, parser
+import common, parser, vertex, transform
+
+const CompiledScene = 1
 
 when isMainModule:
 
     proc draw(p:Polyhedron) =
         var
-            angle {.global.}= 0.0
+            anglex {.global.}= 0.0
+            angley {.global.}= 0.0
             gpoly {.global.}: Polyhedron
             iters {.global.}= 0
+            zoom {.global.} = -4.0
+            nice_poly {.global.}: string
+
+        var 
+            lastx  {.global.}= 0
+            lasty  {.global.}= 0
 
         gpoly = p
         
@@ -22,35 +31,38 @@ when isMainModule:
                 1].GLfloat, v[2].GLfloat]
 
         proc draw_scene()=
-            # draw poly
-            for (colors, faces) in zip(gpoly.colors, gpoly.faces):
-                glBegin(GL_POLYGON) 
+            proc poly=
+                for (colors, face) in zip(gpoly.colors, gpoly.faces):
+                    glBegin(GL_POLYGON) 
 
-                glColor3f(colors[0].GLfloat, colors[1].GLfloat, colors[2].GLfloat)
-                for ix in faces:
-                    let v = gpoly.vertex[ix].toGLfloat
-                    glVertex3fv(cast[ptr GLfloat](v.unsafeAddr))
+                    glColor3f(colors[0].GLfloat, colors[1].GLfloat, colors[2].GLfloat)
+                    for ix in face:
+                        let v = gpoly.vertex[ix].toGLfloat
+                        glVertex3fv(cast[ptr GLfloat](v.unsafeAddr))
 
-                glEnd()
+                    glEnd()
 
-                # poly line
+            proc lines=
+                for face in gpoly.faces:
+                    glColor3f(0.0, 0.0, 0.0)
+                    glBegin(GL_LINE_LOOP)
+                    for ix in face:
+                        let v = gpoly.vertex[ix].toGLfloat
+                        glVertex3fv(cast[ptr GLfloat](v.unsafeAddr))
+                    glEnd()
+
+            proc centers =
                 glColor3f(0.0, 0.0, 0.0)
-                glBegin(GL_LINE_LOOP)
-                for ix in faces:
-                    let v = gpoly.vertex[ix].toGLfloat
-                    glVertex3fv(cast[ptr GLfloat](v.unsafeAddr))
+                glPointSize(2.0)
+                glBegin(GL_POINTS)
+                for (center, normal) in zip(gpoly.centers, gpoly.normals):
+                    let vc=(center+normal.unit/20.0).toGLfloat
+                    glVertex3fv(cast[ptr GLfloat](vc.unsafeAddr))
                 glEnd()
-
-            # draw centers
-            #[
-            glColor3f(0.0, 0.0, 0.0)
-            glPointSize(2.0)
-            glBegin(GL_POINTS)
-            for (center, normal) in zip(gpoly.centers, gpoly.normals):
-                let vc=(center+normal.unit/20.0).toGLfloat
-                glVertex3fv(cast[ptr GLfloat](vc.unsafeAddr))
-            glEnd()
-            ]#
+            
+            poly()
+            # centers()
+            lines()
 
         proc reshape(width: GLsizei, height: GLsizei) {.cdecl.} =
             if height != 0:
@@ -59,24 +71,69 @@ when isMainModule:
                 glLoadIdentity() # Reset
                 gluPerspective(45.0, width / height, 0.1, 100.0)
 
+        proc mouseDrag(x,y:GLint) {.cdecl.} =
+            let d = 2.0
+            angley += (x-lastx).float / d
+            anglex += (y-lasty).float / d  
+
+            lastx=x
+            lasty=y
+
+        proc mouseWheel(button, dir, x,y:GLint) {.cdecl.} =
+            case button:
+                of 3: zoom-=0.1
+                of 4: zoom+=0.1
+                else: discard
+            
         proc keyhook(key:GLbyte, x,y:GLint) {.cdecl.} =
-            if key.char in "q\e": quit()
+            proc compile_poly=
+                glNewList(CompiledScene, GL_COMPILE) # list 1 is scene
+                draw_scene()
+                glEndList()
+                glutSetWindowTitle(fmt("{gpoly.name}, n.vertex:{gpoly.vertex.len}, n.faces:{gpoly.faces.len}"))
+
+            proc gen_poly(tr:string)=
+                gpoly = transform(tr)
+                gpoly.set_centers
+                gpoly.set_colors
+                discard gpoly.normalize
+                compile_poly()
+                
+
+
+            case key.char:
+            of 'q', '\e': quit()
+            of '+' : zoom+=0.4
+            of '-' : zoom-=0.4
+            of 'r' : # random transf
+                let tr=rand_transform()
+                gen_poly(tr)
+                echo tr, "->", gpoly.name
+            of ' ' : # random preset
+                gen_poly(rand_preset())
+            of 'c' : 
+                gpoly.set_colors
+                compile_poly()
+            of 'n': nice_poly &= gpoly.name & ","
+            of 'p': echo nice_poly
+
+            else: discard
+            
 
         proc display() {.cdecl.} =
             glClear(GL_COLOR_BUFFER_BIT or
                     GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
             glMatrixMode(GL_MODELVIEW) # To operate on model-view matrix
             glLoadIdentity() # Reset the model-view matrix
-            glTranslatef(0.0, 0.0, -3.0) # zoom
+            glTranslatef(0.0, 0.0, zoom) # zoom
             glColor3f(1.0, 1.0, 1.0)
-            glRotatef(angle, 1.0, 1.0, 1.0)
 
-            angle+=0.4
+            glRotatef(anglex, 1.0, 0.0, 0.0)
+            glRotatef(-angley, 0.0, 1.0, 0.0)
 
             inc iters
 
-            #draw_scene()
-            glCallList(1)
+            glCallList(CompiledScene)
 
             glutSwapBuffers() 
             glutPostRedisplay() # animate
@@ -92,10 +149,13 @@ when isMainModule:
         glutDisplayFunc(display)
         glutReshapeFunc(reshape)
         glutKeyboardFunc(keyhook)
+        glutMouseFunc(mouseWheel)
+        glutMotionFunc(mouseDrag)
+        glutPassiveMotionFunc(mouseDrag)
 
         loadExtensions()
 
-        glNewList(1, GL_COMPILE)
+        glNewList(CompiledScene, GL_COMPILE) # list 1 is scene
         draw_scene()
         glEndList()
 
@@ -108,11 +168,16 @@ when isMainModule:
 
         glutMainLoop()
 
+import os
+proc main=
     randomize()
+
     let t0=now()
-    var p = transform("HaaqqkO") 
+    var tr = if paramCount()==1: paramStr(1) else: rand_preset()
+    var p = transform(tr) 
     # p.write_wrl
     let lap=(now()-t0).inMilliseconds()
-    echo fmt("lap:{lap}ms, {p.name}: {p.faces.len} faces, {p.vertex.len} vertex")
+    echo fmt("{p.name}: {p.faces.len} faces, {p.vertex.len} vertex, lap:{lap}ms")
     draw(p)
 
+main()

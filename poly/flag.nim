@@ -2,7 +2,7 @@
 # poly flag
 
 import sugar, algorithm, sequtils, tables
-import common
+import common, vertex
 
 proc toToken*(c : char):int = c.int shl 24
 
@@ -59,6 +59,8 @@ proc  gen_face_map*(poly : Polyhedron):Table[Int4, int]= # make table of face as
       
     face_map
 
+# flag
+
 type Flag* = object
     vertexes : Vertexes
     faces: Faces
@@ -66,6 +68,7 @@ type Flag* = object
     m : seq[MapIndex] # m[i4][i4]=i4 -> m[]<<i4,i4,i4
     fcs : seq[seq[Int4]]
     v_index : int # index of last added vertex (add_vertex)
+    error : bool
 
 proc add_vertex*(flag:var Flag, i:Int4, v:Vertex, with_unit:bool=true )=
     flag.v.add(I4Vix(index:i, vix: VertexIndex(index:flag.v_index, vertex:if with_unit: v.unit else: v)))
@@ -128,12 +131,14 @@ proc process_m(flag:var Flag)= # faces = flag.m
 
             while true:
                 face.add(flag.find_vertex_index(v))
+                
                 v = flag.find_m(mm0, v)
                 if v==v0: break
             
                 inc n_iter
-                if n_iter>40:
-                    echo "max loop:", flag.m[0..2],"\n",mm0,v0
+                if n_iter>100:
+                    # echo "max loop:", flag.m[0..2],"\n",mm0,v0
+                    flag.error = true
                     break
 
             flag.faces.add(face)
