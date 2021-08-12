@@ -93,7 +93,12 @@ when isMainModule:
                 glutSetWindowTitle(fmt("{gpoly.name}, n.vertex:{gpoly.vertex.len}, n.faces:{gpoly.faces.len}"))
 
             proc gen_poly(tr:string)=
+                let t0=now()
                 gpoly = transform(tr)
+                let lap=(now()-t0).inMilliseconds()
+
+                echo fmt("{gpoly.name}: {gpoly.faces.len} faces, {gpoly.vertex.len} vertex, lap:{lap}ms")
+
                 gpoly.set_centers
                 gpoly.set_colors
                 discard gpoly.normalize

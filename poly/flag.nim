@@ -9,6 +9,9 @@ proc toToken*(c : char):int = c.int shl 24
 # Flag 
 
 type Int4* = array[4,int]
+
+const i4_base = [-1,-1,-1,-1]
+
 proc cmp*(x,y:Int4):int=
     if x[0]!=y[0]: return x[0]-y[0]
     elif x[1]!=y[1]: return x[1]-y[1]
@@ -68,7 +71,7 @@ type Flag* = object
     m : seq[MapIndex] # m[i4][i4]=i4 -> m[]<<i4,i4,i4
     fcs : seq[seq[Int4]]
     v_index : int # index of last added vertex (add_vertex)
-    error : bool
+    error* : bool
 
 proc add_vertex*(flag:var Flag, i:Int4, v:Vertex, with_unit:bool=true )=
     flag.v.add(I4Vix(index:i, vix: VertexIndex(index:flag.v_index, vertex:if with_unit: v.unit else: v)))
@@ -106,54 +109,69 @@ proc from_to_m(flag:Flag) : Face =
     v_ft.add(frm)
     v_ft
   
-proc find_vertex_index(flag:Flag, v : Int4) : int =
+proc find_vertex_index(flag:var Flag, v : Int4) : int =
     let ix = flag.v.lowerBound(v, proc (x:I4Vix, k:Int4):int=cmp(x.index, k))
-    flag.v[ix].vix.index
+    try:
+        flag.v[ix].vix.index
+    except IndexDefect:
+        flag.error=true
+        0
 
-proc  find_m(flag:Flag, m0, m1 : Int4) : Int4 =
+proc  find_m(flag: var Flag, m0, m1 : Int4) : Int4 =
     let ix = flag.m.lowerBound([m0, m1, i4(0)], proc (x:MapIndex, k:MapIndex) : int = cmp(x,k))
-    flag.m[ix][2]
+    try:
+        flag.m[ix][2]
+    except IndexDefect:
+        flag.error=true
+        i4_base
   
 proc process_m(flag:var Flag)= # faces = flag.m
     if flag.m.len!=0:
         flag.m = flag.m.sortedByIt(it)
         let ft = flag.from_to_m()
-        
-        for i in ft:
-            let 
-                m0 = flag.m[i]
-                v0 = m0[2]
-            var 
-                v = v0
-                mm0 = m0[0]
-                n_iter=0
-            var face : Face
 
-            while true:
-                face.add(flag.find_vertex_index(v))
+        block face_list:
+            for i in ft:
+                let 
+                    m0 = flag.m[i]
+                    v0 = m0[2]
+                var 
+                    v = v0
+                    mm0 = m0[0]
+                    n_iter=0
+                var face : Face
+
+                while true:
+                    face.add(flag.find_vertex_index(v))
+                    
+                    v = flag.find_m(mm0, v)
+                    if v==v0: break 
                 
-                v = flag.find_m(mm0, v)
-                if v==v0: break
-            
-                inc n_iter
-                if n_iter>100:
-                    # echo "max loop:", flag.m[0..2],"\n",mm0,v0
-                    flag.error = true
-                    break
+                    inc n_iter
+                    if n_iter>100 or flag.error:
+                        # echo "max loop:", flag.m[0..2],"\n",mm0,v0
+                        flag.error = true
+                        break face_list
 
+                flag.faces.add(face)
+
+proc process_fcs(flag:var Flag)=
+    if not flag.error:
+        # faces << fcs
+        for fc in flag.fcs:
+            let face = collect(newSeq):
+                for vix in fc: flag.find_vertex_index(vix)
             flag.faces.add(face)
 
-
-proc toPolyhedron*(flag:var Flag, newname:string):Polyhedron=
+proc toPolyhedron*(flag:var Flag, p:Polyhedron, tr_name:string):Polyhedron=
+    flag.error=false
     flag.index_vertexes
 
     flag.faces = @[]
     flag.process_m
+    flag.process_fcs
 
-    # faces << fcs
-    for fc in flag.fcs:
-        let face = collect(newSeq):
-            for vix in fc: flag.find_vertex_index(vix)
-        flag.faces.add(face)
-        
-    Polyhedron(name:newname, vertex: flag.vertexes, faces: flag.faces).simplify
+    if flag.error:
+        p
+    else:
+        Polyhedron(name:tr_name & p.name, vertex: flag.vertexes, faces: flag.faces).simplify

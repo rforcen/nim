@@ -37,7 +37,7 @@ proc kisN*(p: Polyhedron; n:int=0; apexdist:float=0.1) : Polyhedron =
 
             v1 = v2
 
-    flag.toPolyhedron("k" & (if n==0:"" else: $n) & p.name)
+    flag.toPolyhedron(p, "k" & (if n==0: "" else: $n))
 
 proc ambo*(p:Polyhedron) : Polyhedron =
     if not p.check: return p
@@ -70,7 +70,7 @@ proc ambo*(p:Polyhedron) : Polyhedron =
             (v1, v2) = (v2, v3)
 
     
-    flag.toPolyhedron("a" & p.name)
+    flag.toPolyhedron(p, "a")
 
 proc gyro*(p:Polyhedron) : Polyhedron =
     if not p.check: return p
@@ -101,7 +101,7 @@ proc gyro*(p:Polyhedron) : Polyhedron =
             # shift over one
             (v1, v2) = (v2, v3)
 
-    flag.toPolyhedron("g" & p.name)
+    flag.toPolyhedron(p, "g")
 
 proc propellor*(p:Polyhedron):Polyhedron=
     if not p.check: return p
@@ -124,7 +124,7 @@ proc propellor*(p:Polyhedron):Polyhedron=
             # shift over one
             (v1, v2) = (v2, v3)
     
-    flag.toPolyhedron("p" & p.name)
+    flag.toPolyhedron(p, "p")
 
 proc reflection*(p:Polyhedron):Polyhedron=
     if not p.check: return p
@@ -158,7 +158,7 @@ proc dual*(p:Polyhedron):Polyhedron=
                 v1 = v2
             else: ok=false
 
-    if ok:  flag.toPolyhedron("d" & p.name)
+    if ok:  flag.toPolyhedron(p, "d")
     else: p
 
 proc chamfer*(p:Polyhedron, dist : float = 0.5):Polyhedron=
@@ -188,7 +188,7 @@ proc chamfer*(p:Polyhedron, dist : float = 0.5):Polyhedron=
             v1 = v2
             v1new = v2new
 
-    flag.toPolyhedron("c" & p.name)
+    flag.toPolyhedron(p, "c")
 
 proc whirl*(p:Polyhedron):Polyhedron=
     if not p.check: return p
@@ -221,7 +221,7 @@ proc whirl*(p:Polyhedron):Polyhedron=
 
             (v1, v2) = (v2, v3) # shift over one
 
-    flag.toPolyhedron("w" & p.name)
+    flag.toPolyhedron(p, "w")
 
 proc quinto*(p:Polyhedron):Polyhedron=
     if not p.check: return p
@@ -269,7 +269,7 @@ proc quinto*(p:Polyhedron):Polyhedron=
         flag.add_face(vi4)
 
 
-    flag.toPolyhedron("q" & p.name)
+    flag.toPolyhedron(p, "q")
 
 proc insetN*(p:Polyhedron, n:int=0, inset_dist:float=0.3, popout_dist:float = -0.1):Polyhedron=
     if not p.check: return p
@@ -302,9 +302,11 @@ proc insetN*(p:Polyhedron, n:int=0, inset_dist:float=0.3, popout_dist:float = -0
 
             v1 = v2
     
-    if not foundAny: echo "no ",n, " components where found"
+    if not foundAny: 
+        flag.error = true
+        echo "no ",n, " components where found"
     
-    flag.toPolyhedron(newname = "n" & (if n!=0: $n else: "") & p.name)
+    flag.toPolyhedron(p, "n" & (if n!=0: $n else: ""))
 
 proc extrudeN*(p:Polyhedron, n:int=0):Polyhedron=
     var poly = p.insetN(n=n, inset_dist=0.0, popout_dist=0.3)
@@ -337,7 +339,7 @@ proc hollow*(p:Polyhedron, inset_dist : float = 0.3, thickness : float = 0.1):Po
             flag.add_face(@[i4('f', i, 'v', v1), i4('f', i, 'v', v2), i4('d', i, 'v', v2), i4('d', i, 'v', v1)])
             v1 = v2
 
-    flag.toPolyhedron(newname = "H" & p.name)
+    flag.toPolyhedron(p, "H")
 
 proc perspectiva1*(p:Polyhedron):Polyhedron=
 
@@ -382,7 +384,7 @@ proc perspectiva1*(p:Polyhedron):Polyhedron=
         flag.add_face(vi4)
 
 
-    flag.toPolyhedron(newname = "P" & p.name)
+    flag.toPolyhedron(p, "P")
 
 proc trisub*(p:Polyhedron, n:int=2):Polyhedron=
     if p.faces.mapIt(it.len != 3).any(proc (x:bool):bool=x): return p
