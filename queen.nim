@@ -31,29 +31,29 @@ proc newBoard*(b: seq[int]): Board =
     result = Board(n: n, board: b, ld: newSeq[bool](n2), rd: newSeq[bool](n2),
             cl: newSeq[bool](n2))
 
-proc set*(q: var Board, col, val: int) = # set
+proc set*(q: var Board, col, val: int) {.inline.} = # set
     q.board[col] = val
 
     q.ld[(val - col + q.n - 1)] = true
     q.rd[(val + col)] = true
     q.cl[val] = true
 
-proc get*(q: Board, col: int): int =
+proc get*(q: Board, col: int): int {.inline.} =
     q.board[col]
 
-proc reset*(q: var Board, col, val: int) =
+proc reset*(q: var Board, col, val: int) {.inline.} =
     q.board[col] = 0
 
     q.ld[(val - col + q.n - 1)] = false
     q.rd[(val + col)] = false
     q.cl[val] = false
 
-proc is_valid_position*(q: Board, col, i: int): bool =
+proc is_valid_position*(q: Board, col, i: int): bool {.inline.} =
     not q.ld[(i - col + q.n - 1)] and
     not q.rd[(i + col)] and
     not q.cl[i]
 
-proc is_not_valid_position*(q: Board, col, i: int): bool =
+proc is_not_valid_position*(q: Board, col, i: int): bool {.inline.} =
     q.ld[(i - col + q.n - 1)] or
     q.rd[(i + col)] or
     q.cl[i]
@@ -88,7 +88,7 @@ proc newQueen*(n: int): Queen =
     result = Queen(n: n, board: newBoard(n), running: abort_queen_scan.addr)
     result.running[] = true
 
-proc is_running*(q: Queen): bool = q.running[]
+proc is_running*(q: Queen): bool {.inline.} = q.running[]
 
 proc `[]`*(q: Queen, i: int): int = result = q.board.board[i]
 
