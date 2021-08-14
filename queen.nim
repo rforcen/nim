@@ -104,21 +104,12 @@ proc clear(q:var Queen) =
 proc add_eval_n(q:var Queen) = q.count_evals += q.n.u256 #
 
 proc is_valid*(q:Queen) : bool =
-    var ok = true
-    
-    block mainLoop:
-        for i in 0..<q.n-1: 
-            for j in i+1..<q.n:  
-                if q[i] == q[j]:
-                    ok = false
-                    break mainLoop # horizontal -> ci=cj
-                if i - q[i] == j - q[j]:
-                    ok = false
-                    break mainLoop # vertical  / ri-ci = rj-cj
-                if (q[i] - q[j]).abs == (i - j).abs:
-                    ok = false
-                    break mainLoop # vertical \ |ci-cj| = |i-j|
-    ok
+    for i in 0..<q.n-1: 
+        for j in i+1..<q.n:  
+            if q[i] == q[j]: return false # horizontal -> ci=cj
+            if i - q[i] == j - q[j]: return false # vertical  / ri-ci = rj-cj
+            if (q[i] - q[j]).abs == (i - j).abs: return false # vertical \ |ci-cj| = |i-j|
+    true
 
 proc scan_first(q:var Queen, col:int=0)=
     if q.is_running:
