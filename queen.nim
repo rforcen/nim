@@ -14,7 +14,11 @@ q/esc : quit"""
 import ui/rawui, random, math, stint, times, cpuinfo, threadpool, sequtils,
         algorithm, strformat
 
+const max_queens = 100
+
 # board
+type UInt1024* = StUint[1024] # supports upto n=140
+func u1024*(n: SomeInteger): UInt1024 {.inline.} = n.stuint(1024)
 
 type Board* = object
     n: int
@@ -31,32 +35,28 @@ proc newBoard*(b: seq[int]): Board =
     result = Board(n: n, board: b, ld: newSeq[bool](n2), rd: newSeq[bool](n2),
             cl: newSeq[bool](n2))
 
-proc set*(q: var Board, col, val: int) {.inline.} = # set
-    q.board[col] = val
+proc set*(b: var Board, col, val: int) {.inline.} = # set
+    b.board[col] = val
 
-    q.ld[(val - col + q.n - 1)] = true
-    q.rd[(val + col)] = true
-    q.cl[val] = true
+    b.ld[(val - col + b.n - 1)] = true
+    b.rd[(val + col)] = true
+    b.cl[val] = true
 
-proc get*(q: Board, col: int): int {.inline.} =
-    q.board[col]
+proc get*(b: Board, col: int): int {.inline.} =
+    b.board[col]
 
-proc reset*(q: var Board, col, val: int) {.inline.} =
-    q.board[col] = 0
+proc reset*(b: var Board, col, val: int) {.inline.} =
+    b.board[col] = 0
 
-    q.ld[(val - col + q.n - 1)] = false
-    q.rd[(val + col)] = false
-    q.cl[val] = false
+    b.ld[(val - col + b.n - 1)] = false
+    b.rd[(val + col)] = false
+    b.cl[val] = false
 
-proc is_valid_position*(q: Board, col, i: int): bool {.inline.} =
-    not q.ld[(i - col + q.n - 1)] and
-    not q.rd[(i + col)] and
-    not q.cl[i]
+proc is_valid_position*(b: Board, col, i: int): bool {.inline.} =
+    not (b.ld[(i - col + b.n - 1)] or b.rd[(i + col)] or b.cl[i])
 
-proc is_not_valid_position*(q: Board, col, i: int): bool {.inline.} =
-    q.ld[(i - col + q.n - 1)] or
-    q.rd[(i + col)] or
-    q.cl[i]
+proc is_not_valid_position*(b: Board, col, i: int): bool {.inline.} =
+    not b.is_valid_position(col, i)
 
 proc cmp*(b0, b1: Board): int =
     for i in zip(b0.board, b1.board):
@@ -65,9 +65,24 @@ proc cmp*(b0, b1: Board): int =
 proc `[]`*(b: Board, i: int): int = result = b.board[i]
 proc `[]`*(b: var Board, i: int): int = result = b.board[i]
 
-proc `$`*(q: Board): string =
+proc `$`*(b: Board): string =
     result = ""
-    for c in q.board: result &= $c & " "
+    for c in b.board: result &= $c & " "
+
+proc toInt*(b: Board): UInt1024 =
+    result = 0.u1024
+    var p = 1.u1024
+    for index in 0..b.board.high:
+        result += p * b.get(index).stuint(1024)
+        p = p * b.board.len.u1024
+
+proc toBoard*(b: var Board, ip: UInt1024) =
+    var i = ip
+
+    for index in 0..b.board.high:
+        b.set(index, (i mod b.n.u1024).truncate(int))
+        i = i div b.board.len.u1024
+
 
 # static abort scan
 var abort_queen_scan* {.global.}: bool = false
@@ -114,7 +129,13 @@ proc is_valid*(q: Queen): bool =
             if (q[i] - q[j]).abs == (i - j).abs: return false # vertical \ |ci-cj| = |i-j|
     true
 
-proc scan_first(q: var Queen, col: int = 0) =
+proc set_board*(q: var Queen, b: Board) =
+    q.board = newBoard(q.n)
+    for j, c in b.board:
+        if c != 0:
+            q.board.set(j, c)
+
+proc scan_first*(q: var Queen, col: int = 0) =
     if q.is_running:
         if col >= q.n:
             if q.is_valid: q.solutions.add(q.board)
@@ -123,9 +144,27 @@ proc scan_first(q: var Queen, col: int = 0) =
             for i in 0..<q.n:
                 if q.board.is_valid_position(col, i):
                     q.board.set(col, i)
+
                     q.scan_first(col + 1) # recur to place rest
+
                     q.board.reset(col, i) # unmove
             q.add_eval_n()
+
+proc find_first_mt_es*(q: var Queen) =
+    var qs = repeat(q, countProcessors())
+
+    var b = newBoard(q.n)
+    for i in 0..<qs.high: # evently spaced starting scan point
+        let ns = i.u1024 * q.n.u1024.pow(q.n.u1024) div qs.len.u1024
+        b.toBoard(ns)
+        qs[i].set_board(b)
+
+    parallel:
+        for i in 0..qs.high:
+            spawn qs[i].scan_first(0)
+
+    q.solutions = qs.mapIt(it.solutions).filterIt(it.len != 0)[0]
+    q.count_evals = qs.foldl(a + b.count_evals, 0.u256)
 
 proc find_first_mt*(q: var Queen) =
     var qs = repeat(q, countProcessors())
@@ -133,7 +172,6 @@ proc find_first_mt*(q: var Queen) =
     for i in 0..qs.high:
         qs[i].board.set(0, i)
         qs[i].board.set(1, ((q.n div 2) + i + 1) %% q.n)
-
 
     parallel:
         for i in 0..qs.high:
@@ -217,7 +255,7 @@ proc onClosing(w: ptr Window; data: pointer): cint {.cdecl.} =
     rawui.quit()
     return 0
 
-proc handlerDraw(a: ptr AreaHandler; area: ptr Area; p: ptr AreaDrawParams) {.cdecl.} =
+proc handlerDraw*(a: ptr AreaHandler; area: ptr Area; p: ptr AreaDrawParams) {.cdecl.} =
     proc setSolidBrush(brush: ptr DrawBrush; color: uint32; alpha: cdouble) {.cdecl.} =
         var component: uint8
         brush.`type` = DrawBrushTypeSolid
@@ -231,7 +269,6 @@ proc handlerDraw(a: ptr AreaHandler; area: ptr Area; p: ptr AreaDrawParams) {.cd
     const
         colorWhite = 0x00FFFFFF
         colorBlack = 0x00000000
-        colorDodgerBlue = 0x001E90FF
         colorRed = 0x00ff0000
 
     var
@@ -288,7 +325,7 @@ proc handlerDraw(a: ptr AreaHandler; area: ptr Area; p: ptr AreaDrawParams) {.cd
 proc handlerKeyEvent*(ah: ptr AreaHandler; a: ptr Area;
         e: ptr AreaKeyEvent): cint {.cdecl.} =
     # echo e.key.int, ",", e.up
-    var lap:int64=0
+    var lap: int64 = 0
 
     if e.up == 1:
         case e.extKey:
@@ -309,7 +346,7 @@ proc handlerKeyEvent*(ah: ptr AreaHandler; a: ptr Area;
             qs.board = qs.solutions[qs.current_sol]
 
         of ExtKeyNAdd:
-            if n < 100:
+            if n < max_queens:
                 inc n
                 qs = newQueen(n)
         of ExtKeyNSubtract:
@@ -325,7 +362,7 @@ proc handlerKeyEvent*(ah: ptr AreaHandler; a: ptr Area;
                 qs.clear
                 qs.scan_first
                 lap = (now()-t0).inMilliseconds
-                echo "lap st ", qs.n, ":", lap, " #evals:", qs.count_evals
+                # echo "lap st ", qs.n, ":", lap, " #evals:", qs.count_evals
 
                 qs.board = qs.solutions[0]
                 qs.transformations
@@ -340,7 +377,7 @@ proc handlerKeyEvent*(ah: ptr AreaHandler; a: ptr Area;
 
                 qs.transformations
 
-                echo "lap mt ", qs.n, ":", lap, " #evals:", qs.count_evals
+                # echo "lap mt ", qs.n, ":", lap, " #evals:", qs.count_evals
 
             of 'p':
                 for s in qs.solutions:
@@ -350,12 +387,13 @@ proc handlerKeyEvent*(ah: ptr AreaHandler; a: ptr Area;
             else: discard
 
     areaQueueRedrawAll(draw_board)
-    mainwin.windowSetTitle(fmt("nQueens {qs.n} | solutions: {qs.solutions.len} | evals:{qs.count_evals} | lap {lap}"))
+    mainwin.windowSetTitle(fmt("nQueens {qs.n} | solutions: {qs.solutions.len} | evals:{qs.count_evals} | lap {lap}ms"))
 
     return 1
 
 proc handlerMouseEvent*(a: ptr AreaHandler; area: ptr Area;
         e: ptr AreaMouseEvent) {.cdecl.} = discard
+
 proc handlerMouseCrossed*(ah: ptr AreaHandler; a: ptr Area; left: cint) {.
         cdecl.} = discard
 proc handlerDragBroken*(ah: ptr AreaHandler; a: ptr Area) {.cdecl.} = discard
@@ -393,4 +431,19 @@ proc main =
         rawui.main()
         rawui.uninit()
 
+proc test_board_num*() =
+    var b = newBoard(max_queens)
+    for i in 0..b.board.high: b.set(i, i)
+    echo b
+    let bi = b.toInt()
+    echo bi
+
+    var b1 = b
+    b1.toBoard(bi)
+    echo b1
+    echo b1.toInt()
+    echo b == b1
+
+
 main()
+
