@@ -9,6 +9,8 @@ type Faces = seq[seq[int]]
 
 when isMainModule:
 
+    proc rand_radius():float = 40 + rand(6000.float)
+
     proc draw() =
         var
             anglex {.global.}= 0.0
@@ -28,8 +30,8 @@ when isMainModule:
 
         proc gen_wat() {.cdecl.}=
             let wp = waterman_poly(radius)
-            let ch = newConvexHull(wp)
-            (faces, vertices) = (ch.getFaces, ch.getVertices)
+            (faces, vertices) = newConvexHull(wp).getMesh()
+
             title()
     
         proc draw_scene()
@@ -91,7 +93,7 @@ when isMainModule:
             of 'c' : # recolor
               gen_list()
             of ' ' : # random waterman
-              radius = rand(8000.0) + 4.0
+              radius = rand_radius()
               gen_wat()
               gen_list()
 
@@ -131,7 +133,7 @@ when isMainModule:
         loadExtensions()
 
         randomize()        
-        radius = rand(1000.0)+4.0
+        radius = rand_radius()
         gen_wat()
 
         glNewList(CompiledScene, GL_COMPILE) # list 1 is scene
@@ -147,4 +149,17 @@ when isMainModule:
 
         glutMainLoop()
 
+    import times, strformat
+    proc test_qh()=
+        for radius in countup(20000, 29000, 500):
+            let t0 = now()
+            let (faces, vertices) = newConvexHull( waterman_poly(radius.float) ).getMesh
+            let lap=(now()-t0).inMilliseconds
+            echo fmt "rad={radius} lap:{lap}ms, faces:{faces.len}, vertices:{vertices.len}"
+
+        GC_fullCollect()
+        echo "ctrl-d to end"
+        discard readAll(stdin)
+
+    # test_qh()
     draw()
