@@ -66,43 +66,17 @@ type
   VertexList = object
     head, tail: ptr Vertex
 
-# heap depot
-
-var heaper: seq[pointer]
-
-proc heap_init() = heaper = @[]
-proc heap_add(p: pointer) = heaper.add(p)
-proc heap_free() =
-  for p in heaper: dealloc(p)
-  heap_init()
-
-
 # alloc procs
 proc newHalfEdge(v: ptr Vertex, f: ptr Face): ptr HalfEdge =
   result = create(HalfEdge)
   result.vertex = v
   result.face = f
 
-  heap_add(result)
-
 proc newFace(): ptr Face =
   result = create(Face)
   result.mark = VISIBLE
 
-  heap_add(result)
-
-
-proc newVertex(pnt: Point3d, index: int): ptr Vertex =
-  result = create(Vertex)
-  result.pnt = pnt
-  result.index = index
-  result.face = newFace()
-
-  heap_add(result)
-
-
 # HalfEdge
-
 
 proc head(he: HalfEdge): ptr Vertex = he.vertex
 proc tail(he: HalfEdge): ptr Vertex =
@@ -136,6 +110,10 @@ proc add(fl: var FaceList, pvtx: ptr Face) =
 proc first(fl: FaceList): ptr Face = fl.head
 
 # Face
+
+proc delete(face:var ptr Face) =
+  face.dealloc
+  face=nil
 
 proc computeCentroid(face: var Face) =
   face.centroid = dvec3(0, 0, 0)
@@ -228,6 +206,8 @@ proc createTriangle(v0, v1, v2: ptr Vertex, minArea: float = 0.0): ptr Face =
     he0 = newHalfEdge(v0, face)
     he1 = newHalfEdge(v1, face)
     he2 = newHalfEdge(v2, face)
+
+  # face.halfedges = @[he0, he1, he2]
 
   he0.prev = he2
   he0.next = he1
@@ -465,10 +445,10 @@ type HalfEdgeVector = seq[ptr HalfEdge]
 
 type QuickHull3D* = object
   charLength: float
-  pointBuffer: seq[ptr Vertex]
+  pointBuffer: seq[Vertex]
   vertexPointIndices: seq[int]
   discardedFaces: seq[ptr Face]
-  minVtxs, maxVtxs: seq[ptr Vertex]
+  minVtxs, maxVtxs: seq[Vertex]
   faces: FaceVector
   horizon: HalfEdgeVector
   newFaces: FaceList
@@ -476,8 +456,7 @@ type QuickHull3D* = object
   explicitTolerance, tolerance: float # = AUTOMATIC_TOLERANCE
 
 proc `=destroy`(q: var QuickHull3D) =
-
-  heap_free()
+  for f in q.faces.mitems: f.delete
 
 proc getDistanceTolerance(q: QuickHull3D): float = q.tolerance
 
@@ -503,7 +482,7 @@ proc setPoints(q: var QuickHull3D, points: seq[Point3D]) =
   q.vertexPointIndices = newSeq[int](points.len)
 
   for i, point in points:
-    q.pointBuffer.add( newVertex(pnt = point, index = i) )
+    q.pointBuffer.add( Vertex(pnt : point, index : i, face:nil) )
 
 proc buildHull(q: var QuickHull3D)
 
@@ -575,7 +554,7 @@ proc createInitialSimplex(q: var QuickHull3D) =
 
   # set first two vertices to be those with the greatest
   # one dimensional separation
-  var vtx = @[q.maxVtxs[imax], q.minVtxs[imax], nil, nil]
+  var vtx = @[q.maxVtxs[imax].addr, q.minVtxs[imax].addr, nil, nil]
 
   # set third vertex to be the vertex farthest from
   # the line between vtx0 and vtx1
@@ -585,14 +564,14 @@ proc createInitialSimplex(q: var QuickHull3D) =
 
   u01 = (vtx[1].pnt - vtx[0].pnt).normalize()
 
-  for pb in q.pointBuffer:
+  for i, pb in q.pointBuffer:
 
     xprod = cross(u01, pb.pnt - vtx[0].pnt)
     let lenSqr = xprod.lengthSq()
 
-    if lenSqr > maxSqr and pb != vtx[0] and pb != vtx[1]:
+    if lenSqr > maxSqr and pb != vtx[0][] and pb != vtx[1][]:
       maxSqr = lenSqr
-      vtx[2] = pb
+      vtx[2] = q.pointBuffer[i].addr
       nrml = xprod
 
   assert sqrt(maxSqr) > 100 * q.tolerance, "Input points appear to be colinear"
@@ -603,11 +582,11 @@ proc createInitialSimplex(q: var QuickHull3D) =
     maxDist = 0.0
     d0 = vtx[2].pnt.dot(nrml)
 
-  for pb in q.pointBuffer:
+  for i, pb in q.pointBuffer:
     let dist = abs(pb.pnt.dot(nrml) - d0)
-    if dist > maxDist and pb != vtx[0] and pb != vtx[1] and  pb != vtx[2]:
+    if dist > maxDist and pb != vtx[0][] and pb != vtx[1][] and  pb != vtx[2][]:
       maxDist = dist
-      vtx[3] = pb
+      vtx[3] = q.pointBuffer[i].addr
 
 
   assert abs(maxDist) > 100.0 * q.tolerance, "Input points appear to be coplanar"
@@ -637,7 +616,7 @@ proc createInitialSimplex(q: var QuickHull3D) =
 
   for t in tris: q.faces.add(t)
 
-  for v in q.pointBuffer:
+  for i,v in q.pointBuffer:
     if vtx.anyIt(it == v): continue
 
     maxDist = q.tolerance
@@ -649,7 +628,7 @@ proc createInitialSimplex(q: var QuickHull3D) =
         maxDist = dist
 
     if maxFace != nil:
-      q.addPointToFace(v, maxFace)
+      q.addPointToFace(q.pointBuffer[i].addr, maxFace)
 
 proc getFaceIndices(q: QuickHull3D, face: ptr Face, flags: int): seq[int] =
   let
@@ -937,12 +916,13 @@ proc markFaceVertices(q: var QuickHull3D, face: ptr Face, mark: int) =
     While he != he0
 
 proc reindexFacesAndVertices(q: var QuickHull3D) =
-  for pb in q.pointBuffer: pb.index = HIDDEN
+  for pb in q.pointBuffer.mitems: pb.index = HIDDEN
 
   # remove inactive faces and mark active vertices
   var i = 0
   while i < q.faces.len:
     if q.faces[i].mark != VISIBLE:
+      q.faces[i].delete
       q.faces.del(i)
     else:
       q.markFaceVertices(q.faces[i], DISABLED)
@@ -950,11 +930,13 @@ proc reindexFacesAndVertices(q: var QuickHull3D) =
 
   # reindex vertices
   var i_vert = 0
-  for i, pb in q.pointBuffer:
+  i=0
+  for pb in q.pointBuffer.mitems:
     if pb.index == DISABLED:
       q.vertexPointIndices[i_vert] = i
       pb.index = i_vert
       inc i_vert
+    inc i
 
 proc checkFaceConvexity(q: QuickHull3D, face: ptr Face, tol: float): bool =
   var he = face.he0
@@ -1078,13 +1060,11 @@ proc waterman_poly*(radius: float): seq[Point3d] =
 
 
 proc newConvexHull(points: seq[Point3d]): QuickHull3D =
-  heap_init()
-
   result = QuickHull3D(explicitTolerance : AUTOMATIC_TOLERANCE)
 
   result.discardedFaces = newSeq[ptr Face](3)
-  result.maxVtxs = newSeq[ptr Vertex](3)
-  result.minVtxs = newSeq[ptr Vertex](3)
+  result.maxVtxs = newSeq[Vertex](3)
+  result.minVtxs = newSeq[Vertex](3)
   result.build(points)
 
 
