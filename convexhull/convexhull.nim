@@ -440,23 +440,32 @@ proc isEmpty(v: VertexList): bool = v.head == nil
 
 type FaceVector = seq[ptr Face]
 type HalfEdgeVector = seq[ptr HalfEdge]
+type VertexVector = seq[Vertex]
 
 # QuickHull3D
 
 type QuickHull3D* = object
-  charLength: float
-  pointBuffer: seq[Vertex]
-  vertexPointIndices: seq[int]
-  discardedFaces: seq[ptr Face]
-  minVtxs, maxVtxs: seq[Vertex]
+  pointBuffer: VertexVector
   faces: FaceVector
-  horizon: HalfEdgeVector
+  vertexPointIndices: seq[int]
   newFaces: FaceList
+  discardedFaces: FaceVector
   unclaimed, claimed: VertexList
+  horizon: HalfEdgeVector
+  minVtxs, maxVtxs: VertexVector
   explicitTolerance, tolerance: float # = AUTOMATIC_TOLERANCE
 
 proc `=destroy`(q: var QuickHull3D) =
   for f in q.faces.mitems: f.delete
+
+  q.faces = @[] # not sure this is neccesary
+  q.pointBuffer = @[]
+  q.vertexPointIndices = @[]
+  q.discardedFaces = @[]
+  q.minVtxs = @[]
+  q.maxVtxs = @[]
+  q.horizon = @[]  
+
 
 proc getDistanceTolerance(q: QuickHull3D): float = q.tolerance
 
@@ -482,7 +491,7 @@ proc setPoints(q: var QuickHull3D, points: seq[Point3D]) =
   q.vertexPointIndices = newSeq[int](points.len)
 
   for i, point in points:
-    q.pointBuffer.add( Vertex(pnt : point, index : i, face:nil) )
+    q.pointBuffer.add( Vertex(pnt : point, index : i) )
 
 proc buildHull(q: var QuickHull3D)
 
@@ -529,9 +538,6 @@ proc computeMaxAndMin(q: var QuickHull3D) =
 
   # this epsilon formula comes from QuickHull, and I'm
   # not about to quibble.
-  q.charLength = max(max.x - min.x, max.y - min.y)
-  q.charLength = max(max.z - min.z, q.charLength)
-
   if q.explicitTolerance == AUTOMATIC_TOLERANCE:
     q.tolerance = 3 * DOUBLE_PREC * (max(max.x.abs, min.x.abs) + max(
             max.y.abs, min.y.abs) + max(max.z.abs, min.z.abs))
@@ -1066,7 +1072,6 @@ proc newConvexHull(points: seq[Point3d]): QuickHull3D =
   result.maxVtxs = newSeq[Vertex](3)
   result.minVtxs = newSeq[Vertex](3)
   result.build(points)
-
 
 proc getVertices(q: QuickHull3D): seq[Point3D] =
   var max = 0.0
