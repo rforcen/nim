@@ -163,4 +163,13 @@ when isMainModule:
         echo "ctrl-d to end"
         discard readAll(stdin)
 
+    proc bench_qh()=
+        let 
+            t0 = now()
+            radius=6000
+        let (faces, vertices) = convexHull( waterman_poly(radius.float) )
+        let lap=(now()-t0).inMilliseconds
+        echo fmt "rad={radius} lap:{lap}ms, faces:{faces.len}, vertices:{vertices.len}"
+
     draw()
+    # bench_qh()

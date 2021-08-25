@@ -1,5 +1,5 @@
 #[ 
-    convex hull, ref version, 30% slower than ptr but safer and easier to maintain
+    convex hull
 
     usage: 
 
@@ -39,59 +39,58 @@ type
   Point3d* = DVec3
 
   HalfEdge = object
-    vertex: ref Vertex
-    face: ref Face
-    next, prev, opposite: ref HalfEdge
+    vertex: ptr Vertex
+    face: ptr Face
+    next, prev, opposite: ptr HalfEdge
 
   Face = object
-    he0: ref HalfEdge
+    he0: ptr HalfEdge
     area: float
     planeOffset: float
     index: int
     numVerts: int
-    next: ref Face
+    next: ptr Face
     mark: int # VISIBLE
-    outside: ref Vertex
+    outside: ptr Vertex
     normal, centroid: Point3d
 
   FaceList = object
-    head, tail: ref Face
+    head, tail: ptr Face
 
   Vertex = object
-    pnt: ref Point3d
+    pnt: Point3d
     index: int
-    prev, next: ref Vertex
-    face: ref Face
+    prev, next: ptr Vertex
+    face: ptr Face
 
   VertexList = object
-    head, tail: ref Vertex
+    head, tail: ptr Vertex
 
+# alloc procs
+proc newHalfEdge(v: ptr Vertex, f: ptr Face): ptr HalfEdge =
+  result = create(HalfEdge)
+  result.vertex = v
+  result.face = f
 
-proc box[T](x: T): ref T = new(result); result[] = x # obj to ref conversion
-
-# new procs
-proc newHalfEdge(v: ref Vertex, f: ref Face): ref HalfEdge =  HalfEdge(vertex:v , face:f).box
-proc newFace(): ref Face = Face(mark:VISIBLE).box
-proc newVertex(pnt: ref Point3d, index: int): ref Vertex = Vertex(pnt:pnt, index:index, face:nil).box
-
-# Vertex
-proc getPoint(v:ref Vertex):Point3d{.inline.}=v.pnt[]
+proc newFace(): ptr Face =
+  result = create(Face)
+  result.mark = VISIBLE
 
 # HalfEdge
 
-proc head(he: HalfEdge): ref Vertex = he.vertex
-proc tail(he: HalfEdge): ref Vertex =
+proc head(he: HalfEdge): ptr Vertex = he.vertex
+proc tail(he: HalfEdge): ptr Vertex =
   if he.prev != nil: he.prev.vertex else: nil
-proc getNext(he: HalfEdge): ref HalfEdge = he.next
-proc getFace(he: HalfEdge): ref Face = he.face
-proc getOpposite(he: HalfEdge): ref HalfEdge = he.opposite
-proc setOpposite(he: ref HalfEdge, edge: ref HalfEdge) =
+proc getNext(he: HalfEdge): ptr HalfEdge = he.next
+proc getFace(he: HalfEdge): ptr Face = he.face
+proc getOpposite(he: HalfEdge): ptr HalfEdge = he.opposite
+proc setOpposite(he: ptr HalfEdge, edge: ptr HalfEdge) =
   he.opposite = edge
   edge.opposite = he
-proc oppositeFace(he: HalfEdge): ref Face =
+proc oppositeFace(he: HalfEdge): ptr Face =
   if he.opposite != nil: he.opposite.face else: nil
 proc lengthSq(he: HalfEdge): float =
-  if he.tail() != nil: he.head().pnt.distSq(he.tail().getPoint)
+  if he.tail() != nil: he.head().pnt.distSq(he.tail().pnt)
   else: -1
 
 # FaceList
@@ -99,7 +98,7 @@ proc clear(fl: var FaceList) =
   fl.head = nil
   fl.tail = nil
 
-proc add(fl: var FaceList, pvtx: ref Face) =
+proc add(fl: var FaceList, pvtx: ptr Face) =
   var vtx = pvtx
 
   if fl.head == nil: fl.head = vtx
@@ -108,15 +107,19 @@ proc add(fl: var FaceList, pvtx: ref Face) =
   vtx.next = nil
   fl.tail = vtx
 
-proc first(fl: FaceList): ref Face = fl.head
+proc first(fl: FaceList): ptr Face = fl.head
 
 # Face
+
+proc delete(face:var ptr Face) =
+  face.dealloc
+  face=nil
 
 proc computeCentroid(face: var Face) =
   face.centroid = dvec3(0, 0, 0)
   var he = face.he0
   Do:
-    face.centroid += he.head().getPoint
+    face.centroid += he.head().pnt
     he = he.next
     While he != face.he0
   face.centroid /= face.numVerts.float
@@ -127,8 +130,8 @@ proc computeNormal(face: var Face) =
     he1 = face.he0.next
     he2 = he1.next
 
-    p0 = face.he0.head().getPoint
-    p2 = he1.head().getPoint
+    p0 = face.he0.head().pnt
+    p2 = he1.head().pnt
     d2 = p2 - p0
 
   face.normal = dvec3(0, 0, 0)
@@ -137,7 +140,7 @@ proc computeNormal(face: var Face) =
   while he2 != face.he0:
     var d1=d2
 
-    p2 = he2.head().getPoint
+    p2 = he2.head().pnt
 
     d2=p2-p0
 
@@ -156,7 +159,7 @@ proc computeNormal(face: var Face, minArea: float) =
   if face.area < minArea:
 
     var
-      hedgeMax: ref HalfEdge = nil
+      hedgeMax: ptr HalfEdge = nil
       lenSqrMax = 0.0
       hedge = face.he0
     Do:
@@ -169,8 +172,8 @@ proc computeNormal(face: var Face, minArea: float) =
       While hedge != face.he0
 
     let
-      p2 = hedgeMax.head().getPoint
-      p1 = hedgeMax.tail().getPoint
+      p2 = hedgeMax.head().pnt
+      p1 = hedgeMax.tail().pnt
       lenMax = sqrt(lenSqrMax)
       u = (p2-p1) / lenMax
 
@@ -197,7 +200,7 @@ proc computeNormalAndCentroid(face: var Face, minArea: float) =
   face.computeCentroid()
   face.planeOffset = face.normal.dot(face.centroid)
 
-proc createTriangle(v0, v1, v2: ref Vertex, minArea: float = 0.0): ref Face =
+proc createTriangle(v0, v1, v2: ptr Vertex, minArea: float = 0.0): ptr Face =
   var
     face = newFace()
     he0 = newHalfEdge(v0, face)
@@ -219,7 +222,7 @@ proc createTriangle(v0, v1, v2: ref Vertex, minArea: float = 0.0): ref Face =
   face.computeNormalAndCentroid(minArea)
   face
 
-proc getEdge(face: Face, i_p: int): ref HalfEdge =
+proc getEdge(face: Face, i_p: int): ptr HalfEdge =
   var
     i = i_p
     he = face.he0
@@ -232,7 +235,7 @@ proc getEdge(face: Face, i_p: int): ref HalfEdge =
     inc i
   he
 
-proc getFirstEdge(face: Face): ref HalfEdge = face.he0
+proc getFirstEdge(face: Face): ptr HalfEdge = face.he0
 
 proc distanceToPlane(face: Face, p: Point3D): float =
   face.normal.x*p.x + face.normal.y*p.y + face.normal.z*p.z - face.planeOffset
@@ -241,15 +244,15 @@ proc getCentroid(face: Face): Point3D = face.centroid
 proc numVertices(face: Face): int = face.numVerts
 
 proc connectHalfEdges(face: var Face, hedgePrev,
-        hedge: ref HalfEdge): ref Face =
+        hedge: ptr HalfEdge): ptr Face =
 
-  var discardedFace: ref Face = nil
+  var discardedFace: ptr Face = nil
 
   if hedgePrev.oppositeFace() == hedge.oppositeFace(): # then there is a redundant edge that we can get rid off
 
     var
       oppFace = hedge.oppositeFace()
-      hedgeOpp: ref HalfEdge
+      hedgeOpp: ptr HalfEdge
 
     if hedgePrev == face.he0:
       face.he0 = hedge
@@ -305,7 +308,7 @@ proc checkConsistency(face: Face) =
     assert oppFace != nil
     assert oppFace.mark != DELETED
 
-    var d = face.distanceToPlane(hedge.head().getPoint).abs
+    var d = face.distanceToPlane(hedge.head().pnt).abs
     if d > maxd: maxd = d
 
     inc numv
@@ -315,8 +318,8 @@ proc checkConsistency(face: Face) =
 
   assert(numv == face.numVerts)
 
-proc mergeAdjacentFace(face: var ref Face, hedgeAdj: ref HalfEdge,
-        discarded: var seq[ref Face]): int =
+proc mergeAdjacentFace(face: var ptr Face, hedgeAdj: ptr HalfEdge,
+        discarded: var seq[ptr Face]): int =
 
   var
     oppFace = hedgeAdj.oppositeFace()
@@ -378,7 +381,7 @@ proc clear(v: var VertexList) =
   v.head = nil
   v.tail = nil
 
-proc add(v: var VertexList, vtx: ref Vertex) =
+proc add(v: var VertexList, vtx: ptr Vertex) =
   if v.head == nil:
     v.head = vtx
   else:
@@ -388,7 +391,7 @@ proc add(v: var VertexList, vtx: ref Vertex) =
   vtx.next = nil
   v.tail = vtx
 
-proc addAll(v: var VertexList, vtx: var ref Vertex) =
+proc addAll(v: var VertexList, vtx: var ptr Vertex) =
   if v.head == nil:
     v.head = vtx
   else:
@@ -400,7 +403,7 @@ proc addAll(v: var VertexList, vtx: var ref Vertex) =
 
   v.tail = vtx
 
-proc del(v: var VertexList, vtx: ref Vertex) =
+proc del(v: var VertexList, vtx: ptr Vertex) =
   if vtx.prev == nil:
     v.head = vtx.next
   else:
@@ -411,7 +414,7 @@ proc del(v: var VertexList, vtx: ref Vertex) =
   else:
     vtx.next.prev = vtx.prev
 
-proc del(v: var VertexList, vtx1, vtx2: ref Vertex) =
+proc del(v: var VertexList, vtx1, vtx2: ptr Vertex) =
   if vtx1.prev == nil:
     v.head = vtx2.next
   else:
@@ -422,7 +425,7 @@ proc del(v: var VertexList, vtx1, vtx2: ref Vertex) =
   else:
     vtx2.next.prev = vtx1.prev
 
-proc insertBefore(v: var VertexList, vtx, next: ref Vertex) =
+proc insertBefore(v: var VertexList, vtx, next: ptr Vertex) =
   vtx.prev = next.prev
   if next.prev == nil:
     v.head = vtx
@@ -432,12 +435,12 @@ proc insertBefore(v: var VertexList, vtx, next: ref Vertex) =
   vtx.next = next
   next.prev = vtx
 
-proc first(v: VertexList): ref Vertex = v.head
+proc first(v: VertexList): ptr Vertex = v.head
 proc isEmpty(v: VertexList): bool = v.head == nil
 
-type FaceVector = seq[ref Face]
-type HalfEdgeVector = seq[ref HalfEdge]
-type VertexVector = seq[ref Vertex]
+type FaceVector = seq[ptr Face]
+type HalfEdgeVector = seq[ptr HalfEdge]
+type VertexVector = seq[Vertex]
 
 # QuickHull3D
 
@@ -453,9 +456,21 @@ type QuickHull3D* = object
   minVtxs, maxVtxs: VertexVector
   explicitTolerance, tolerance: float # = AUTOMATIC_TOLERANCE
 
+proc `=destroy`(q: var QuickHull3D) =
+  for f in q.faces.mitems: f.delete
+
+  q.faces = @[] # not sure this is neccesary
+  q.pointBuffer = @[]
+  q.vertexPointIndices = @[]
+  q.discardedFaces = @[]
+  q.minVtxs = @[]
+  q.maxVtxs = @[]
+  q.horizon = @[]  
+
+
 proc getDistanceTolerance(q: QuickHull3D): float = q.tolerance
 
-proc addPointToFace(q: var QuickHull3D, vtx: ref Vertex, face: ref Face) =
+proc addPointToFace(q: var QuickHull3D, vtx: ptr Vertex, face: ptr Face) =
 
   vtx.face = face
 
@@ -465,7 +480,7 @@ proc addPointToFace(q: var QuickHull3D, vtx: ref Vertex, face: ref Face) =
     q.claimed.insertBefore(vtx, face.outside)
   face.outside = vtx
 
-proc removePointFromFace(q: var QuickHull3D, vtx: ref Vertex, face: ref Face) =
+proc removePointFromFace(q: var QuickHull3D, vtx: ptr Vertex, face: ptr Face) =
   if vtx == face.outside:
     if vtx.next != nil and vtx.next.face == face:
       face.outside = vtx.next
@@ -477,7 +492,7 @@ proc setPoints(q: var QuickHull3D, points: seq[Point3D]) =
   q.vertexPointIndices = newSeq[int](points.len)
 
   for i, point in points:
-    q.pointBuffer.add( newVertex(pnt = point.box, index = i) )
+    q.pointBuffer.add( Vertex(pnt : point, index : i) )
 
 proc buildHull(q: var QuickHull3D)
 
@@ -536,7 +551,7 @@ proc createInitialSimplex(q: var QuickHull3D) =
     imax = 0
 
   for i in 0..q.maxVtxs.high:
-    let diff = q.maxVtxs[i].getPoint[i] - q.minVtxs[i].getPoint[i]
+    let diff = q.maxVtxs[i].pnt[i] - q.minVtxs[i].pnt[i]
     if diff > max:
       max = diff
       imax = i
@@ -546,7 +561,7 @@ proc createInitialSimplex(q: var QuickHull3D) =
 
   # set first two vertices to be those with the greatest
   # one dimensional separation
-  var vtx = @[q.maxVtxs[imax], q.minVtxs[imax], nil, nil]
+  var vtx = @[q.maxVtxs[imax].addr, q.minVtxs[imax].addr, nil, nil]
 
   # set third vertex to be the vertex farthest from
   # the line between vtx0 and vtx1
@@ -554,16 +569,16 @@ proc createInitialSimplex(q: var QuickHull3D) =
     u01, nrml, xprod: DVec3
     maxSqr = 0.0
 
-  u01 = (vtx[1].getPoint - vtx[0].getPoint).normalize()
+  u01 = (vtx[1].pnt - vtx[0].pnt).normalize()
 
   for i, pb in q.pointBuffer:
 
-    xprod = cross(u01, pb.pnt - vtx[0].getPoint)
+    xprod = cross(u01, pb.pnt - vtx[0].pnt)
     let lenSqr = xprod.lengthSq()
 
     if lenSqr > maxSqr and pb != vtx[0][] and pb != vtx[1][]:
       maxSqr = lenSqr
-      vtx[2] = q.pointBuffer[i]
+      vtx[2] = q.pointBuffer[i].addr
       nrml = xprod
 
   assert sqrt(maxSqr) > 100 * q.tolerance, "Input points appear to be colinear"
@@ -578,12 +593,12 @@ proc createInitialSimplex(q: var QuickHull3D) =
     let dist = abs(pb.pnt.dot(nrml) - d0)
     if dist > maxDist and pb != vtx[0][] and pb != vtx[1][] and  pb != vtx[2][]:
       maxDist = dist
-      vtx[3] = q.pointBuffer[i]
+      vtx[3] = q.pointBuffer[i].addr
 
 
   assert abs(maxDist) > 100.0 * q.tolerance, "Input points appear to be coplanar"
 
-  var tris = newSeq[ref Face](4)
+  var tris = newSeq[ptr Face](4)
 
   if vtx[3].pnt.dot(nrml) - d0 < 0:
     tris[0] = createTriangle(vtx[0], vtx[1], vtx[2])
@@ -612,25 +627,26 @@ proc createInitialSimplex(q: var QuickHull3D) =
     if vtx.anyIt(it == v): continue
 
     maxDist = q.tolerance
-    var maxFace: ref Face
+    var maxFace: ptr Face
     for t in tris:
-      let dist = t.distanceToPlane(v.getPoint)
+      let dist = t.distanceToPlane(v.pnt)
       if dist > maxDist:
         maxFace = t
         maxDist = dist
 
     if maxFace != nil:
-      q.addPointToFace(q.pointBuffer[i], maxFace)
+      q.addPointToFace(q.pointBuffer[i].addr, maxFace)
 
-proc getFaceIndices(q: QuickHull3D, face: ref Face, flags: int): seq[int] =
+proc getFaceIndices(q: QuickHull3D, face: ptr Face, flags: int): seq[int] =
   let
     ccw = (flags and CLOCKWISE) == 0
     indexedFromOne = (flags and INDEXED_FROM_ONE) != 0
     pointRelative = (flags and POINT_RELATIVE) != 0
 
   var
-    indices: seq[int]
+    indices: seq[int] = @[]
     hedge = face.he0
+    k = 0
 
   Do:
     var idx = hedge.head().index
@@ -639,9 +655,10 @@ proc getFaceIndices(q: QuickHull3D, face: ref Face, flags: int): seq[int] =
     if indexedFromOne:
       inc idx
 
-    assert idx >= 0, "negative face index"
+    assert idx >= 0, "negative ace index"
 
     indices.add(idx)
+    inc k
     hedge = if ccw: hedge.next else: hedge.prev
 
     While hedge != face.he0
@@ -658,13 +675,13 @@ proc resolveUnclaimedPoints(q: var QuickHull3D, newFaces: FaceList) =
 
     var
       maxDist = q.tolerance
-      maxFace: ref Face = nil
+      maxFace: ptr Face = nil
       newFace = newFaces.first()
 
     while newFace != nil:
       if newFace.mark == VISIBLE:
 
-        let dist = newFace.distanceToPlane(vtx.getPoint)
+        let dist = newFace.distanceToPlane(vtx.pnt)
         if dist > maxDist:
           maxDist = dist
           maxFace = newFace
@@ -679,7 +696,7 @@ proc resolveUnclaimedPoints(q: var QuickHull3D, newFaces: FaceList) =
 
     vtx = vtxNext
 
-proc removeAllPointsFromFace(q: var QuickHull3D, face: ref Face): ref Vertex =
+proc removeAllPointsFromFace(q: var QuickHull3D, face: ptr Face): ptr Vertex =
   if face.outside != nil:
     var end_face = face.outside
     while end_face.next != nil and end_face.next.face == face:
@@ -692,7 +709,7 @@ proc removeAllPointsFromFace(q: var QuickHull3D, face: ref Face): ref Vertex =
     return nil
 
 
-proc deleteFacePoints(q: var QuickHull3D, face, absorbingFace: ref Face) =
+proc deleteFacePoints(q: var QuickHull3D, face, absorbingFace: ptr Face) =
   var faceVtxs = q.removeAllPointsFromFace(face)
 
   if faceVtxs != nil:
@@ -705,18 +722,18 @@ proc deleteFacePoints(q: var QuickHull3D, face, absorbingFace: ref Face) =
 
       while vtx != nil:
         vtxNext = vtx.next
-        if absorbingFace.distanceToPlane(vtx.getPoint) > q.tolerance:
+        if absorbingFace.distanceToPlane(vtx.pnt) > q.tolerance:
           q.addPointToFace(vtx, absorbingFace)
         else:
           q.unclaimed.add(vtx)
         vtx = vtxNext
 
 
-proc oppFaceDistance(q: QuickHull3D, he: ref HalfEdge): float =
+proc oppFaceDistance(q: QuickHull3D, he: ptr HalfEdge): float =
   he.face.distanceToPlane(he.opposite.face.getCentroid())
 
 
-proc doAdjacentMerge(q: var QuickHull3D, face: var ref Face,
+proc doAdjacentMerge(q: var QuickHull3D, face: var ptr Face,
         mergeType: int): bool =
 
   var
@@ -764,14 +781,14 @@ proc doAdjacentMerge(q: var QuickHull3D, face: var ref Face,
   false
 
 
-proc calculateHorizon(q: var QuickHull3D, eyePnt: ref Point3d,
-        pedge0: ref HalfEdge, face: ref Face, horizon: var HalfEdgeVector) =
+proc calculateHorizon(q: var QuickHull3D, eyePnt: ptr Point3d,
+        pedge0: ptr HalfEdge, face: ptr Face, horizon: var HalfEdgeVector) =
 
   q.deleteFacePoints(face, nil)
   face.mark = DELETED
 
   var
-    edge: ref HalfEdge
+    edge: ptr HalfEdge
     edge0 = pedge0
 
   if edge0 == nil:
@@ -791,21 +808,21 @@ proc calculateHorizon(q: var QuickHull3D, eyePnt: ref Point3d,
     edge = edge.getNext()
     While edge != edge0
 
-proc addAdjoiningFace(q: var QuickHull3D, eyeVtx: ref Vertex,
-        he: ref HalfEdge): ref HalfEdge =
+proc addAdjoiningFace(q: var QuickHull3D, eyeVtx: ptr Vertex,
+        he: ptr HalfEdge): ptr HalfEdge =
   var face = createTriangle(eyeVtx, he.tail(), he.head())
   q.faces.add(face)
   face.getEdge(-1).setOpposite(he.getOpposite())
   face.getEdge(0)
 
 proc addNewFaces(q: var QuickHull3D, newFaces: var FaceList,
-        eyeVtx: ref Vertex, horizon: HalfEdgeVector) =
+        eyeVtx: ptr Vertex, horizon: HalfEdgeVector) =
 
   newFaces.clear()
 
   var
-    hedgeSidePrev: ref HalfEdge = nil
-    hedgeSideBegin: ref HalfEdge = nil
+    hedgeSidePrev: ptr HalfEdge = nil
+    hedgeSideBegin: ptr HalfEdge = nil
 
   for horizonHe in horizon:
 
@@ -821,17 +838,17 @@ proc addNewFaces(q: var QuickHull3D, newFaces: var FaceList,
 
   hedgeSideBegin.next.setOpposite(hedgeSidePrev)
 
-proc nextPointToAdd(q: QuickHull3D): ref Vertex =
+proc nextPointToAdd(q: QuickHull3D): ptr Vertex =
   if not q.claimed.isEmpty():
     var
       eyeFace = q.claimed.first().face
-      eyeVtx: ref Vertex = nil
+      eyeVtx: ptr Vertex = nil
       maxDist = 0.0
 
     var vtx = eyeFace.outside
     while vtx != nil and vtx.face == eyeFace:
 
-      let dist = eyeFace.distanceToPlane(vtx.getPoint)
+      let dist = eyeFace.distanceToPlane(vtx.pnt)
       if dist > maxDist:
         maxDist = dist
         eyeVtx = vtx
@@ -843,13 +860,14 @@ proc nextPointToAdd(q: QuickHull3D): ref Vertex =
     return nil
 
 
-proc addPointToHull(q: var QuickHull3D, eyeVtx: ref Vertex) =
+proc addPointToHull(q: var QuickHull3D, eyeVtx: ptr Vertex) =
 
   q.horizon.setLen(0)
   q.unclaimed.clear()
 
   q.removePointFromFace(eyeVtx, eyeVtx.face)
-  q.calculateHorizon(eyeVtx.pnt, nil, eyeVtx.face, q.horizon)
+  let he_nil: ptr HalfEdge = nil
+  q.calculateHorizon(eyeVtx.pnt.unsafeAddr, he_nil, eyeVtx.face, q.horizon)
   q.newFaces.clear()
   q.addNewFaces(q.newFaces, eyeVtx, q.horizon)
 
@@ -894,7 +912,7 @@ proc buildHull(q: var QuickHull3D) =
   q.reindexFacesAndVertices()
 
 
-proc markFaceVertices(q: var QuickHull3D, face: ref Face, mark: int) =
+proc markFaceVertices(q: var QuickHull3D, face: ptr Face, mark: int) =
   var
     he0 = face.getFirstEdge()
     he = he0
@@ -911,14 +929,14 @@ proc reindexFacesAndVertices(q: var QuickHull3D) =
   var i = 0
   while i < q.faces.len:
     if q.faces[i].mark != VISIBLE:
+      q.faces[i].delete
       q.faces.del(i)
     else:
       q.markFaceVertices(q.faces[i], DISABLED)
       inc i
 
-  # reindex vertices->calculate new q.numVertices
+  # reindex vertices
   (q.numVertices, i) = (0, 0)
-
   for pb in q.pointBuffer.mitems:
     if pb.index == DISABLED:
       q.vertexPointIndices[q.numVertices] = i
@@ -926,7 +944,7 @@ proc reindexFacesAndVertices(q: var QuickHull3D) =
       inc q.numVertices
     inc i
 
-proc checkFaceConvexity(q: QuickHull3D, face: ref Face, tol: float): bool =
+proc checkFaceConvexity(q: QuickHull3D, face: ptr Face, tol: float): bool =
   var he = face.he0
 
   Do:
@@ -968,7 +986,7 @@ proc check(q: QuickHull3D, tol: float): bool =
   for p in q.pointBuffer:
     for face in q.faces:
       if face.mark == VISIBLE:
-        if face.distanceToPlane(p.getPoint) > pointTol:
+        if face.distanceToPlane(p.pnt) > pointTol:
           return false
   true
 
@@ -1050,16 +1068,16 @@ proc waterman_poly*(radius: float): seq[Point3d] =
 proc newConvexHull(points: seq[Point3d]): QuickHull3D =
   result = QuickHull3D(explicitTolerance : AUTOMATIC_TOLERANCE)
 
-  result.discardedFaces = newSeq[ref Face](3)
-  result.maxVtxs = newSeq[ref Vertex](3)
-  result.minVtxs = newSeq[ref Vertex](3)
+  result.discardedFaces = newSeq[ptr Face](3)
+  result.maxVtxs = newSeq[Vertex](3)
+  result.minVtxs = newSeq[Vertex](3)
   result.build(points)
 
 proc getVertices(q: QuickHull3D): seq[Point3D] =
   var max = 0.0
 
-  for i in 0..q.numVertices: # calculated in reindex
-    result.add(q.pointBuffer[q.vertexPointIndices[i]].getPoint)
+  for i in 0..q.numVertices:
+    result.add(q.pointBuffer[q.vertexPointIndices[i]].pnt)
     max = max.max(result[i].x.max(result[i].y.max(result[i].z)))
 
   if max != 0.0:
