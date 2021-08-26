@@ -1,6 +1,7 @@
 # waterman poly / convex hull ui
 
-import convexhull, tables
+import convexhull_ptr, wp
+import sequtils, tables
 import opengl/glut, opengl, opengl/glu, strformat, random
 
 const CompiledScene = 1
@@ -28,20 +29,34 @@ when isMainModule:
 
         proc title = glutSetWindowTitle(fmt("Waterman {radius.int}, faces:{faces.len}, vertices:{vertices.len}"))
 
-        proc gen_wat() {.cdecl.}=
+        proc gen_wat_mt() {.cdecl.}=
+            let wp = waterman_poly(radius)
+
+            let n=4
+            var 
+                vfaces:Faces
+                vvertices:Vertexes
             faces = @[]
             vertices = @[]
-            (faces, vertices) = convexHull(waterman_poly(radius))
+            for chunk in wp.distribute(n):
+                (vfaces, vvertices) = convexHull(chunk, scaled=false)
+
+                let lf = vertices.len
+                for v in vvertices: vertices.add(v)
+
+                for f in vfaces: 
+                    var mf=f
+                    for m in mf.mitems: m+=lf
+                    faces.add(mf)
+
+            vertices.normalize
+            title()
+
+        proc gen_wat() {.cdecl.}=
+            let wp = waterman_poly radius
+            (faces, vertices) = convexHull wp
             title()
     
-        proc draw_scene()
-        proc gen_list()=
-            glNewList(CompiledScene, GL_COMPILE) # list 1 is scene
-            title()
-            draw_scene()
-            glEndList()
-
-
         proc draw_scene()=
             proc poly=
                 var colors : Table[int,array[3,float]]
@@ -65,6 +80,12 @@ when isMainModule:
             
             poly()
             lines()
+
+        proc gen_list()=
+                glNewList(CompiledScene, GL_COMPILE) # list 1 is scene
+                title()
+                draw_scene()
+                glEndList()
 
         proc reshape(width: GLsizei, height: GLsizei) {.cdecl.} =
             if height != 0:
@@ -152,7 +173,7 @@ when isMainModule:
         glutMainLoop()
 
     import times, strformat
-    proc test_qh()=
+    proc test_qh*()=
         for radius in countdown(29000, 20000, 500):
             let t0 = now()
             let (faces, vertices) = convexHull( waterman_poly(radius.float) )
@@ -163,11 +184,12 @@ when isMainModule:
         echo "ctrl-d to end"
         discard readAll(stdin)
 
-    proc bench_qh()=
+    proc bench_qh*()=
         let 
+            radius=10000
+            wp = waterman_poly(radius.float)
             t0 = now()
-            radius=6000
-        let (faces, vertices) = convexHull( waterman_poly(radius.float) )
+        let (faces, vertices) = convexHull( wp )
         let lap=(now()-t0).inMilliseconds
         echo fmt "rad={radius} lap:{lap}ms, faces:{faces.len}, vertices:{vertices.len}"
 
