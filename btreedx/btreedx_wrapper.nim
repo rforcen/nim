@@ -3,57 +3,41 @@
 # nim cpp -d:release -d:danger --passL:btreedx.o --passC:-std=c++11 btreedx_wrapper.nim
 
 # ffi
-
 proc newBtreeDX*() : pointer  {.importc,  header: "btreedx_wrapper.h".}
-proc open*(bt:pointer, fileName:ptr cchar) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc open*(bt:pointer, fileName:cstring) : bool  {.importc.}
 proc close*(bt:pointer) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc create*(bt:pointer, fileName:ptr cchar, keylen:cint, unique:cint=1, overlay:cint=1) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc add*(bt:pointer, key:ptr cchar, recno:cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc find*(bt:pointer, key:ptr cchar, recno:ptr cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc findEQ*(bt:pointer, key:ptr cchar, recno:ptr cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc next*(bt:pointer, key:ptr cchar, recno:ptr cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc eraseEQ*(bt:pointer, key:ptr cchar) : bool  {.importc,  header: "btreedx_wrapper.h".}
-proc eraseMatch*(bt:pointer, key:ptr cchar) : bool  {.importc,  header: "btreedx_wrapper.h".}
-
-# conversions
-proc tocharptr(s:string):ptr cchar=s[0].unsafeAddr
-proc tocharptr(s:openArray[char]):ptr cchar=s[0].unsafeAddr
-proc toString(s:openArray[char]):string=
-  for c in s: result &= c
-proc tochararr(s:string, c:var openArray[char])=
-  for i in 0..s.high: c[i]=s[i]
+proc create*(bt:pointer, fileName:cstring, keylen:cint, unique:cint=1, overlay:cint=1) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc add*(bt:pointer, key:cstring, recno:cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc find*(bt:pointer, key:cstring, recno:var cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc findEQ*(bt:pointer, key:cstring, recno:var cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc next*(bt:pointer, key:cstring, recno:var cint) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc eraseEQ*(bt:pointer, key:cstring) : bool  {.importc,  header: "btreedx_wrapper.h".}
+proc eraseMatch*(bt:pointer, key:cstring) : bool  {.importc,  header: "btreedx_wrapper.h".}
 
 # wrapper
-proc open*(bt:pointer, fileName:string) : bool = bt.open(fileName.tocharptr)
+proc open*(bt:pointer, fileName:string) : bool = bt.open(fileName.cstring)
 
 proc create*(bt:pointer, fileName:string, keylen:int, unique:int=1, overlay:int=1) : bool=
-  bt.create(fileName.tocharptr, keylen.cint, unique.cint, overlay.cint)
+  bt.create(fileName.cstring, keylen.cint, unique.cint, overlay.cint)
 
-proc add*(bt:pointer, key:string, recno:int) : bool =  bt.add(key.tocharptr, recno.cint)
+proc add*(bt:pointer, key:string, recno:int) : bool =  bt.add(key.cstring, recno.cint)
 
 proc find*(bt:pointer, key:string, recno:var int) : bool  =
   var ci = recno.cint
-  result=bt.find(key.tocharptr, ci.unsafeAddr)
+  result=bt.find(key.cstring, ci)
   recno=ci.int
 
 proc next*(bt:pointer, key:var string, recno:var int) : bool =
-  var 
-    ci = recno.cint
-    ckey:array[128, char] # max 100
-  
-  tochararr(key, ckey)
-  
-  result=bt.next(ckey[0].addr, ci.unsafeAddr)
-
+  var ci = recno.cint
+  result=bt.next(key.cstring, ci)
   recno=ci.int
-  key=ckey.toString
 
 # test
 
 when isMainModule:
 
   const 
-    n=100000
+    n=1000
     filename="test.ndx"
 
   proc create_ins_find* =
@@ -92,7 +76,7 @@ when isMainModule:
     var bt = newBtreeDX()
     if bt.open(filename):
       var 
-        part_key="450"
+        part_key="45"
         key=part_key
         recno=0
 

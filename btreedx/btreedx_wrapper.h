@@ -23,17 +23,17 @@ extern "C"
   {
     return ((BtreeDX *)bt)->add(key, recno);
   }
-  bool find(void *bt, const char *key, int *recNo)
+  bool find(void *bt, const char *key, int &recNo)
   {
-    return ((BtreeDX *)bt)->find(key, *recNo);
+    return ((BtreeDX *)bt)->find(key, recNo);
   }
-  bool findEQ(void *bt, const char *key, int *recNo)
+  bool findEQ(void *bt, const char *key, int &recNo)
   {
-    return ((BtreeDX *)bt)->findEQ(key, *recNo);
+    return ((BtreeDX *)bt)->findEQ(key, recNo);
   }
-  bool next(void *bt, char *key, int *recNo)
+  bool next(void *bt, char *key, int &recNo)
   {
-    return ((BtreeDX *)bt)->next(key, *recNo);
+    return ((BtreeDX *)bt)->next(key, recNo);
   }
   bool eraseEQ(void *bt, const char *key)
   {
