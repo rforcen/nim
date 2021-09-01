@@ -1,5 +1,5 @@
 # 4 inline game
-import sequtils, sugar
+import sequtils, threadpool, cpuinfo
 
 const
   N = 7
@@ -132,17 +132,27 @@ proc play(fil: var Fourinline, level : int) : int = # single thread
   result = fil.alpha_beta(level, level, -int.high, int.high, Human)
   fil.move( fil.best_move )
 
+proc play(fil: var Fourinline, level : int, em:var EvalMove)  = # single thread evaluate & best_move
+  fil.best_move=newMove()
+  let eval = fil.alpha_beta(level, level, -int.high, int.high, Human)
+  em = EvalMove(eval:eval, move:fil.best_move)
+
 proc play_mt*(fil: var Fourinline, level : int) : int = # multi-threaded version
   fil.best_move.clear()
-  let evals = collect(newSeq):
-    for ev in fil.board.generate_moves(): 
-      var fcopy=fil
-      fcopy.board.move(ev, Human)
-      EvalMove(eval:fcopy.alpha_beta(level-1, level-1, -int.high, int.high, Human), move:fcopy.best_move)
-  
+  let 
+    moves = fil.board.generate_moves()
+    nth = min(moves.len, countProcessors())
+  var 
+    fils = fil.repeat(nth)
+    evals = newSeq[EvalMove](nth)
+
+  parallel: #  --threadAnalysis:off
+    for i in 0..<nth:
+      fils[i].board.move(moves[i], Human)
+      spawn fils[i].play(level-1, evals[i])
+
   # set max & best move
   let best_eval = evals[ maxIndex(evals) ]
-  #let best_eval = evals [ evals.iter().enumerate().max_by(|(a,_), (b,_)| a.partial_cmp(b).unwrap_or(Ordering::Equal)).map(|(max_index,_)| max_index).unwrap() ].clone()
  
   fil.move( best_eval.move )
   fil.best_move = best_eval.move
@@ -373,7 +383,8 @@ when isMainModule:
                     mainwin.windowSetTitle "you won!"
                     end_game=true
                   else:
-                    let res = fil.play(LEVEL)
+                    let t0 = now()
+                    let res = fil.play LEVEL 
                     if fil.computer_wins(): 
                       mainwin.windowSetTitle "i win!"
                       end_game=true
@@ -381,7 +392,8 @@ when isMainModule:
                       mainwin.windowSetTitle "draw"
                       end_game=true
                     else:
-                      mainwin.windowSetTitle fmt "moved {fil.best_move.col+1}, result:{res}"
+                      let lap=(now()-t0).inMilliseconds
+                      mainwin.windowSetTitle fmt "moved {fil.best_move.col+1}, result:{res}, lap:{lap}"
                 
               else: discard
 
@@ -437,7 +449,7 @@ when isMainModule:
     block outer: 
       while true:
         let t = now()
-        let res = fil.play(LEVEL)
+        let res = fil.play LEVEL
         # discard fil.play_mt(LEVEL)
 
         n_moves.inc
