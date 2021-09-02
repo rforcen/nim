@@ -2,15 +2,16 @@
 import sequtils, threadpool, cpuinfo
 
 const
+  LEVEL = 4
+
   N = 7
   N_COL = N
   N_ROW = N-1
 
-  EVAL_DRAW = 2
+  EVAL_DRAW = -2 # worst than 0 (play) and better than MIN_EVAL (loose)
   MAX_EVAL = int.high
   MIN_EVAL = -int.high
 
-  LEVEL = 10
 
 type 
   Chip = enum
@@ -70,8 +71,9 @@ proc move_check(b: var Board, col : int, who : Chip) : bool =
       b.cols_sum[col].inc
 
 proc take(b: var Board, col : int) {.inline} =
-  b.cols_sum[col].dec
-  b[b.cols_sum[col], col]=Empty        
+  if b.cols_sum[col]>0:
+    b.cols_sum[col].dec
+    b[b.cols_sum[col], col]=Empty        
 
 
 proc print*(b:Board) =
@@ -88,10 +90,15 @@ proc print*(b:Board) =
   echo "-------------"
   echo "0 1 2 3 4 5 6"
 
+proc eval2string(ev:int):string=
+  case ev:
+    of MAX_EVAL : "i'll win"
+    of MIN_EVAL : "you can win"
+    else        : "play"
 
 # Move
 
-proc newMove() : Move = Move( col:0, res: -1, chip:Empty )
+proc newMove() : Move = Move( col:0, res: MIN_EVAL, chip:Empty )
 
 proc set_if_better(mv: var Move, col:int, res:int, chip:Chip) {.inline.} =
   if res > mv.res:
@@ -124,8 +131,13 @@ proc newFourinline*() : Fourinline =
       win_coords  : find_all_winning_coords() 
   )
 
-proc move(fil: var Fourinline, mv : Move) =
-  fil.board.move(mv.col, mv.chip)
+proc move(fil: var Fourinline, mv : var Move) =
+  if mv.chip==Empty: # human wins condition... -> correct move
+    let moves=fil.board.generate_moves()
+    if moves.len!=0:
+      mv=Move(col:moves[0], chip:Machine)
+
+  discard fil.board.move_check(mv.col, mv.chip)
 
 proc play(fil: var Fourinline, level : int) : int = # single thread
   fil.best_move.clear()
@@ -152,7 +164,7 @@ proc play_mt*(fil: var Fourinline, level : int) : int = # multi-threaded version
       spawn fils[i].play(level-1, evals[i])
 
   # set max & best move
-  let best_eval = evals[ maxIndex(evals) ]
+  var best_eval = evals[ maxIndex(evals) ]
  
   fil.move( best_eval.move )
   fil.best_move = best_eval.move
@@ -176,14 +188,13 @@ proc alpha_beta(fil: var Fourinline, level : int, max_level : int, palpha : int,
       if moves.len() > 0:
         
           case who:
-              of Human :  # test all computer moves
+              of Human :  # test all Machine moves
                   for mv in moves:
                       fil.board.move(mv, Machine)
 
                       if fil.computer_wins():
                           eval = MAX_EVAL
-                          if level == max_level:
-                              fil.best_move.set_if_better(mv, MAX_EVAL, Machine )
+                          if level == max_level: fil.best_move.set_if_better(mv, MAX_EVAL, Machine )
                       else:
                           eval = fil.alpha_beta(level - 1, max_level, alpha, beta, Machine)
 
@@ -203,8 +214,9 @@ proc alpha_beta(fil: var Fourinline, level : int, max_level : int, palpha : int,
                       fil.board.move(mv, Human)
 
                       if fil.human_wins():
-                          eval = -MAX_EVAL
+                          eval = -MAX_EVAL # so beta<=eval
                           alpha = -MAX_EVAL
+                          
                       else:
                           eval = fil.alpha_beta(level - 1, max_level, alpha, beta, Human)
 
@@ -383,17 +395,15 @@ when isMainModule:
                     mainwin.windowSetTitle "you won!"
                     end_game=true
                   else:
-                    let t0 = now()
-                    let res = fil.play LEVEL 
-                    if fil.computer_wins(): 
-                      mainwin.windowSetTitle "i win!"
-                      end_game=true
-                    elif fil.board.is_draw(): 
-                      mainwin.windowSetTitle "draw"
-                      end_game=true
+                    let 
+                      t0 = now()
+                      res = fil.play LEVEL 
+                      lap=(now()-t0).inMilliseconds
+
+                    if fil.computer_wins(): mainwin.windowSetTitle "i win!";   end_game=true
+                    elif fil.board.is_draw():  mainwin.windowSetTitle "draw";  end_game=true
                     else:
-                      let lap=(now()-t0).inMilliseconds
-                      mainwin.windowSetTitle fmt "moved {fil.best_move.col+1}, result:{res}, lap:{lap}"
+                      mainwin.windowSetTitle fmt "moved {fil.best_move.col+1}, result:{eval2string(res)}, lap:{lap}"
                 
               else: discard
 
@@ -488,5 +498,27 @@ when isMainModule:
                     break outer
                 break 
 
+  import random
+  proc test=
+    proc test1=
+      var 
+        b=newBoard()
+        chip = Machine
+      
+      while true:
+        let moves = b.generate_moves()
+        # stdout.write moves.len," "
+        if moves.len!=0:
+          b.move(moves.sample, chip)
+          chip = if chip==Human: Machine else: Human
+        else: break
+      # echo "\n", b.cols_sum
+      assert b.cols_sum == N_COL.repeat N_ROW
 
+    for i in 0..500000: 
+      stdout.write "\r", i; stdout.flushFile
+      test1()
+
+  # test()
+  
   ui_play()
