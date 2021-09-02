@@ -1,8 +1,9 @@
 # 4 inline game
 import sequtils, threadpool, cpuinfo
 
+var LEVEL = 4
+
 const
-  LEVEL = 4
 
   N = 7
   N_COL = N
@@ -194,7 +195,7 @@ proc alpha_beta(fil: var Fourinline, level : int, max_level : int, palpha : int,
 
                       if fil.computer_wins():
                           eval = MAX_EVAL
-                          if level == max_level: fil.best_move.set_if_better(mv, MAX_EVAL, Machine )
+                          if level == max_level: fil.best_move.set(mv, MAX_EVAL, Machine )
                       else:
                           eval = fil.alpha_beta(level - 1, max_level, alpha, beta, Machine)
 
@@ -214,9 +215,9 @@ proc alpha_beta(fil: var Fourinline, level : int, max_level : int, palpha : int,
                       fil.board.move(mv, Human)
 
                       if fil.human_wins():
-                          eval = -MAX_EVAL # so beta<=eval
+                          eval = -MAX_EVAL 
                           alpha = -MAX_EVAL
-                          
+                          if level == max_level: fil.best_move.set(mv, MIN_EVAL, Machine )                          
                       else:
                           eval = fil.alpha_beta(level - 1, max_level, alpha, beta, Human)
 
@@ -374,49 +375,59 @@ when isMainModule:
       grid()
       draw_board()
 
+  proc go_play(k:int)=
+    if not end_game and fil.board.move_check(k, Human):
+      if fil.human_wins(): 
+        mainwin.windowSetTitle "you won!"
+        end_game=true
+      else:
+        let 
+          t0 = now()
+          res = fil.play LEVEL 
+          lap=(now()-t0).inMilliseconds
+
+        if fil.computer_wins(): mainwin.windowSetTitle "i win!";   end_game=true
+        elif fil.board.is_draw():  mainwin.windowSetTitle "draw";  end_game=true
+        else:
+          mainwin.windowSetTitle fmt "moved {fil.best_move.col+1}, result:{eval2string(res)}, lap:{lap}, level:{LEVEL}"
+
   proc handlerKeyEvent*(ah: ptr AreaHandler; a: ptr Area;  e: ptr AreaKeyEvent): cint {.cdecl.} =
-      if e.up == 1:
-          case e.extKey:
-          of ExtKeyEscape:
-              discard mainwin.onClosing(nil)
+
+    if e.up == 1:
+        case e.extKey:
+        of ExtKeyEscape:  discard mainwin.onClosing(nil)
+        of ExtKeyNAdd: LEVEL.inc
+        of ExtKeyNSubtract:  
+          if LEVEL>3: LEVEL.dec
+        of ExtKeyN0..ExtKeyN9:   go_play e.extKey.int - ExtKeyN0.int + 1
           
-          else:
-              case e.key:
-              of 'q': discard mainwin.onClosing(nil)
-              of 'c': 
-                fil = newFourinline()
-                mainwin.windowSetTitle "4 inline"
-                discard fil.play LEVEL
-                end_game=false
+        else:
+            case e.key:
+            of 'q': discard mainwin.onClosing(nil)
+            of 'c': 
+              fil = newFourinline()
+              mainwin.windowSetTitle "4 inline"
+              discard fil.play LEVEL
+              end_game=false
+            
 
-              of '1'..'7': 
-                if not end_game and fil.board.move_check(e.key.int-'1'.int, Human):
-                  if fil.human_wins(): 
-                    mainwin.windowSetTitle "you won!"
-                    end_game=true
-                  else:
-                    let 
-                      t0 = now()
-                      res = fil.play LEVEL 
-                      lap=(now()-t0).inMilliseconds
+            of '1'..'7':  go_play(e.key.int-'1'.int)
+              
+            else: discard
 
-                    if fil.computer_wins(): mainwin.windowSetTitle "i win!";   end_game=true
-                    elif fil.board.is_draw():  mainwin.windowSetTitle "draw";  end_game=true
-                    else:
-                      mainwin.windowSetTitle fmt "moved {fil.best_move.col+1}, result:{eval2string(res)}, lap:{lap}"
-                
-              else: discard
+    areaQueueRedrawAll(draw_board)
 
+    return 1
+
+  proc handlerMouseEvent*(a: ptr AreaHandler; area: ptr Area; e: ptr AreaMouseEvent) {.cdecl.} = 
+    if e.down==1: 
+      go_play (e.x / (e.areaWidth / N_COL.float)).int
       areaQueueRedrawAll(draw_board)
-
-      return 1
-
-  proc handlerMouseEvent*(a: ptr AreaHandler; area: ptr Area;
-          e: ptr AreaMouseEvent) {.cdecl.} = discard
 
   proc handlerMouseCrossed*(ah: ptr AreaHandler; a: ptr Area; left: cint) {.
           cdecl.} = discard
-  proc handlerDragBroken*(ah: ptr AreaHandler; a: ptr Area) {.cdecl.} = discard
+  proc handlerDragBroken*(ah: ptr AreaHandler; a: ptr Area) {.cdecl.} = 
+    discard
     
   proc ui_play()=
     var
