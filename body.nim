@@ -30,12 +30,12 @@ proc fromv5*(v: openArray[float]): Body =
 
 type BodySet = object
   radius: float
-  bodies*: seq[Body]
+  bodies: seq[Body]
 
 proc newBodySet*(): BodySet =
   BodySet()
 
-proc three_bodies*(): BodySet =
+proc three_bodies*(): BodySet = # sample
   BodySet(
       radius: 1.25e11,
       bodies: @[
