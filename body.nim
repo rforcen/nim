@@ -47,15 +47,15 @@ proc three_bodies*(): BodySet =
 
 proc inc_time*(bs: var BodySet, dt: float) =
   let n=bs.bodies.high
-  var f = newSeq[DVec2](bs.bodies.len)
+  var mf = newSeqWith(n+1, newSeq[DVec2](n+1))
 
   for i in 0..n:
-    for j in 0..n:
-      if j != i: # calc only lower diag
-        f[i] += bs.bodies[i].force_from(bs.bodies[j])
+    for j in i+1..n: # calc upper triangular matrix
+      let force = bs.bodies[i].force_from(bs.bodies[j])
+      mf[i][j] = force
+      mf[j][i] = -force
 
-  for i in 0..n: # move the bodies
-    bs.bodies[i].do_move(f[i], dt)
+    bs.bodies[i].do_move(mf[i].sum, dt) # move body(i)
 
 proc get_coords*(bs: BodySet, scale: float = 1): seq[DVec2] =
   bs.bodies.mapIt(it.r * scale / bs.radius)
