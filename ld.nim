@@ -38,7 +38,7 @@ proc tanh*(x: f128): f128 {.importc: "tanh", header: math_header.}
 proc asin*(x: f128): f128 {.importc: "asin", header: math_header.}
 proc acos*(x: f128): f128 {.importc: "acos", header: math_header.}
 proc atan*(x: f128): f128 {.importc: "atan", header: math_header.}
-proc ata2n*(x, y: f128): f128 {.importc: "atan2", header: math_header.}
+proc atan2*(x, y: f128): f128 {.importc: "atan2", header: math_header.}
 
 proc exp*(x: f128): f128 {.importc: "exp", header: math_header.}
 proc log*(x: f128): f128 {.importc: "log", header: math_header.}
@@ -115,6 +115,8 @@ when isMainModule:
   echo f0, ", ", f0.abs
   echo 123.456.sqrt, ", ", f2.abs
   echo f2, ", ", f2.lmod
+
+  echo "atan2=", atan2(f1,f2)
 
   # seq's
   var sf: seq[f128]
