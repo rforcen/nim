@@ -18,16 +18,13 @@ high precision complex arithmetic and includes an Extended Precision Complex Mat
 
 source: https://www.nongnu.org/hpalib/
 
-nim hpa wrapper, requires hpalib.a / .lib
+nim hpa wrapper, requires hpalib.a / .lib & -lm
 
  make -f GNUmakefile
  sudo make -f GNUmakefile install 
-
-compile:
-
- nim c --passL:-lhpa hpa
-
 ]#
+
+{.passL: "-lhpa -lm".} # libs required
 
 const
   HPA_VERSION* = "1.7"
@@ -54,6 +51,7 @@ when not defined(XERR_IGN):
 type xpr* {.bycopy.} = object
     nmm*: array[XDIM + 1, cushort]
 
+
 proc xadd*(a: xpr; b: xpr; k: cint): xpr {.importc: "xadd".}
 proc xmul*(s: xpr; t: xpr): xpr {.importc: "xmul".}
 proc xdiv*(s: xpr; t: xpr): xpr {.importc: "xdiv".}
@@ -77,43 +75,43 @@ proc xis0*(u: ptr xpr): cint {.importc: "xis0".}
 proc xnot0*(u: ptr xpr): cint {.importc: "xnot0".}
 proc xsgn*(u: ptr xpr): cint {.importc: "xsgn".}
 proc x_neg*(p: ptr xpr): cint {.importc: "x_neg".}
-proc x_exp*(p: ptr xpr): cint {.importc: "x_exp".}
+proc exp*(p: ptr xpr): cint {.importc: "x_exp".}
 proc xsfmod*(t: xpr; p: ptr cint): xpr {.importc: "xsfmod".}
 proc xpwr*(s: xpr; n: cint): xpr {.importc: "xpwr".} 
 proc xpr2*(s: xpr; n: cint): xpr {.importc: "xpr2".}
 proc xneg*(s: xpr): xpr {.importc: "xneg".}
-proc xabs*(s: xpr): xpr {.importc: "xabs".}
+proc abs*(s: xpr): xpr {.importc: "xabs".}
 proc xfrexp*(s: xpr; p: ptr cint): xpr {.importc: "xfrexp".}
 proc xfmod*(s: xpr; t: xpr; q: ptr xpr): xpr {.importc: "xfmod".}
-proc xfrac*(x: xpr): xpr {.importc: "xfrac".}
-proc xtrunc*(x: xpr): xpr {.importc: "xtrunc".}
-proc xround*(x: xpr): xpr {.importc: "xround".}
-proc xceil*(x: xpr): xpr {.importc: "xceil".}
-proc xfloor*(x: xpr): xpr {.importc: "xfloor".}
-proc xfix*(x: xpr): xpr {.importc: "xfix".}
+proc frac*(x: xpr): xpr {.importc: "xfrac".}
+proc trunc*(x: xpr): xpr {.importc: "xtrunc".}
+proc round*(x: xpr): xpr {.importc: "xround".}
+proc ceil*(x: xpr): xpr {.importc: "xceil".}
+proc floor*(x: xpr): xpr {.importc: "xfloor".}
+proc fix*(x: xpr): xpr {.importc: "xfix".}
 proc xtodbl*(s: xpr): cdouble {.importc: "xtodbl".}
 proc xtoflt*(s: xpr): cfloat {.importc: "xtoflt".}
-proc xtan*(x: xpr): xpr {.importc: "xtan".}
-proc xsin*(x: xpr): xpr {.importc: "xsin".}
-proc xcos*(x: xpr): xpr {.importc: "xcos".}
-proc xatan*(a: xpr): xpr {.importc: "xatan".}
-proc xasin*(a: xpr): xpr {.importc: "xasin".}
-proc xacos*(a: xpr): xpr {.importc: "xacos".}
-proc xatan2*(y: xpr; x: xpr): xpr {.importc: "xatan2".}
-proc xsqrt*(u: xpr): xpr {.importc: "xsqrt".}
-proc xexp*(u: xpr): xpr {.importc: "xexp".}
-proc xexp2*(u: xpr): xpr {.importc: "xexp2".}
-proc xexp10*(u: xpr): xpr {.importc: "xexp10".}
-proc xlog*(u: xpr): xpr {.importc: "xlog".}
-proc xlog2*(u: xpr): xpr {.importc: "xlog2".}
-proc xlog10*(u: xpr): xpr {.importc: "xlog10".}
-proc xtanh*(v: xpr): xpr {.importc: "xtanh".}
-proc xsinh*(v: xpr): xpr {.importc: "xsinh".}
-proc xcosh*(v: xpr): xpr {.importc: "xcosh".}
-proc xatanh*(v: xpr): xpr {.importc: "xatanh".}
-proc xasinh*(v: xpr): xpr {.importc: "xasinh".}
-proc xacosh*(v: xpr): xpr {.importc: "xacosh".}
-proc xpow*(x: xpr; y: xpr): xpr {.importc: "xpow".}
+proc tan*(x: xpr): xpr {.importc: "xtan".}
+proc sin*(x: xpr): xpr {.importc: "xsin".}
+proc cos*(x: xpr): xpr {.importc: "xcos".}
+proc atan*(a: xpr): xpr {.importc: "xatan".}
+proc asin*(a: xpr): xpr {.importc: "xasin".}
+proc acos*(a: xpr): xpr {.importc: "xacos".}
+proc atan2*(y: xpr; x: xpr): xpr {.importc: "xatan2".}
+proc sqrt*(u: xpr): xpr {.importc: "xsqrt".}
+proc exp*(u: xpr): xpr {.importc: "xexp".}
+proc exp2*(u: xpr): xpr {.importc: "xexp2".}
+proc exp10*(u: xpr): xpr {.importc: "xexp10".}
+proc log*(u: xpr): xpr {.importc: "xlog".}
+proc log2*(u: xpr): xpr {.importc: "xlog2".}
+proc log10*(u: xpr): xpr {.importc: "xlog10".}
+proc tanh*(v: xpr): xpr {.importc: "xtanh".}
+proc sinh*(v: xpr): xpr {.importc: "xsinh".}
+proc cosh*(v: xpr): xpr {.importc: "xcosh".}
+proc atanh*(v: xpr): xpr {.importc: "xatanh".}
+proc asinh*(v: xpr): xpr {.importc: "xasinh".}
+proc acosh*(v: xpr): xpr {.importc: "xacosh".}
+proc pow*(x: xpr; y: xpr): xpr {.importc: "xpow".}
 proc xchcof*(m: cint; xfunc: proc (a1: xpr): xpr): ptr xpr {.importc: "xchcof".}
 proc xevtch*(z: xpr; a: ptr xpr; m: cint): xpr {.importc: "xevtch".}
 proc xpr_asprint*(u: xpr; sc_not: cint; sign: cint; lim: cint): cstring {.importc: "xpr_asprint".}
@@ -125,7 +123,8 @@ proc xrshift*(i: cint; p: ptr cushort; k: cint) {.importc: "xrshift".}
 template xsum*(a, b: untyped): untyped = xadd(a, b, 0)
 template xsub*(a, b: untyped): untyped = xadd(a, b, 1)
 
-# wrapper
+
+# xpr wrapper
 
 # conv's
 var int_limit=20 # default # of digitid to output
@@ -169,57 +168,184 @@ proc sgn*(x:xpr):int = xsgn(x.unsafeAddr).int
 proc `%%`*(x,y:xpr) : xpr = 
   var r:xpr
   xfmod(x,y,r.unsafeAddr)
-proc frac*(x:xpr):xpr=xfrac(x)
-proc floor*(x:xpr):xpr=xfloor(x)
-proc trunc*(x:xpr):xpr=xtrunc(x)
 proc pow*(x:xpr, n:int):xpr=xpwr(x, n.cint)
-proc pow*(x, y:xpr):xpr=xpow(x, y)
 proc pow2*(x:xpr, n:int):xpr=xpr2(x, n.cint)
-proc abs*(x:xpr):xpr=xabs(x)
 
-proc log*(x:xpr):xpr=xlog(x)
-proc log2*(x:xpr):xpr=xlog2(x)
-proc log10*(x:xpr):xpr=xlog10(x)
-proc exp*(x:xpr):xpr=xexp(x)
-proc exp2*(x:xpr):xpr=xexp2(x)
-proc exp10*(x:xpr):xpr=xexp10(x)
+# complex
 
-# trings / arc / hyperbolics
-proc sin*(x:xpr):xpr=xsin(x)
-proc cos*(x:xpr):xpr=xcos(x)
-proc tan*(x:xpr):xpr=xtan(x)
+type
+  cxpr* {.bycopy.} = object
+    re*: xpr
+    im*: xpr
 
-proc asin*(x:xpr):xpr=xasin(x)
-proc acos*(x:xpr):xpr=xacos(x)
-proc atan*(x:xpr):xpr=xatan(x)
+  cxprcmp_res* {.bycopy.} = object
+    re*: cint
+    im*: cint
 
-proc sinh*(x:xpr):xpr=xsinh(x)
-proc cosh*(x:xpr):xpr=xcosh(x)
-proc tanh*(x:xpr):xpr=xtanh(x)
+
+var
+   cxZero*: cxpr
+   cxOne*: cxpr
+   cxIU*: cxpr
+
+proc cxreset*(re: xpr; im: xpr): cxpr {.importc:"cxreset".}
+proc cxconv*(x: xpr): cxpr {.importc:"cxconv".}
+proc cxre*(z: cxpr): xpr {.importc:"cxre".}
+proc cxim*(z: cxpr): xpr {.importc:"cxim".}
+proc cxswap*(z: cxpr): cxpr {.importc:"cxswap".}
+proc cxabs*(z: cxpr): xpr {.importc:"cxabs".}
+proc cxarg*(z: cxpr): xpr {.importc:"cxarg".}
+proc cxrec*(z: cxpr; w: ptr cxpr): cint {.importc:"cxrec".}
+proc cxadd*(z1: cxpr; z2: cxpr; k: cint): cxpr {.importc:"cxadd".}
+proc cxsum*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxsum".}
+proc cxsub*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxsub".}
+proc cxmul*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxmul".} #  Multiplication by a real number
+proc cxrmul*(c: xpr; z: cxpr): cxpr {.importc:"cxrmul".} #  Multiplication by +i
+proc drot*(z: cxpr): cxpr {.importc:"cxdrot".}#  Multiplication by -i
+proc rrot*(z: cxpr): cxpr {.importc:"cxrrot".}
+proc cxdiv*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxdiv".}
+proc cxgdiv*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxgdiv".}
+proc cxidiv*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxidiv".}
+proc cxgmod*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxgmod".}
+proc cxmod*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxmod".}
+proc cxpwr*(z: cxpr; n: cint): cxpr {.importc:"cxpwr".}
+proc sqr*(z: cxpr): cxpr {.importc:"cxsqr".}
+proc pow*(z1: cxpr; z2: cxpr): cxpr {.importc:"cxpow".}
+proc cxroot*(z: cxpr; i: cint; n: cint): cxpr {.importc:"cxroot".}
+proc sqrt*(z: cxpr): cxpr {.importc:"cxsqrt".}
+proc cxprcmp*(z1: ptr cxpr; z2: ptr cxpr): cxprcmp_res {.importc:"cxprcmp".}
+proc is0*(z: ptr cxpr): cint {.importc:"cxis0".}
+proc not0*(z: ptr cxpr): cint {.importc:"cxnot0".}
+proc cxeq*(z1: cxpr; z2: cxpr): cint {.importc:"cxeq".}
+proc cxneq*(z1: cxpr; z2: cxpr): cint {.importc:"cxneg".}
+proc cxgt*(z1: cxpr; z2: cxpr): cint {.importc:"cxgt".}
+proc cxge*(z1: cxpr; z2: cxpr): cint {.importc:"cxge".}
+proc cxlt*(z1: cxpr; z2: cxpr): cint {.importc:"cxlt".}
+proc cxle*(z1: cxpr; z2: cxpr): cint {.importc:"cxle".}
+
+proc conj*(z: cxpr): cxpr {.importc:"cxconj".}
+proc neg*(z: cxpr): cxpr {.importc:"cxneg".}
+proc inv*(z: cxpr): cxpr {.importc:"cxinv".}
+
+proc exp*(z: cxpr): cxpr {.importc:"cxexp".}
+proc exp10*(z: cxpr): cxpr {.importc:"cxexp10".}
+proc exp2*(z: cxpr): cxpr {.importc:"cxexp2".}
+
+proc log*(z: cxpr): cxpr {.importc:"cxlog".}
+proc log10*(z: cxpr): cxpr {.importc:"cxlog10".}
+proc log2*(z: cxpr): cxpr {.importc:"cxlog2".}
+proc log_sqrt*(z: cxpr): cxpr {.importc:"cxlog_sqrt".}
+proc sin*(z: cxpr): cxpr {.importc:"cxsin".}
+proc cos*(z: cxpr): cxpr {.importc:"cxcos".}
+proc tan*(z: cxpr): cxpr {.importc:"cxtan".}
+proc sinh*(z: cxpr): cxpr {.importc:"cxsinh".}
+proc cosh*(z: cxpr): cxpr {.importc:"cxcosh".}
+proc tanh*(z: cxpr): cxpr {.importc:"cxtanh".}
+proc asin*(z: cxpr): cxpr {.importc:"cxasin".}
+proc acos*(z: cxpr): cxpr {.importc:"cxacos".}
+proc atan*(z: cxpr): cxpr {.importc:"cxatan".}
+proc asinh*(z: cxpr): cxpr {.importc:"cxasinh".}
+proc acosh*(z: cxpr): cxpr {.importc:"cxacosh".}
+proc atanh*(z: cxpr): cxpr {.importc:"cxatanh".}
+proc floor*(z: cxpr): cxpr {.importc:"cxfloor".}
+proc ceil*(z: cxpr): cxpr {.importc:"cxceil".}
+proc round*(z: cxpr): cxpr {.importc:"cxround".}
+proc trunc*(z: cxpr): cxpr {.importc:"cxtrunc".}
+proc frac*(z: cxpr): cxpr {.importc:"cxfrac".}
+proc fix*(z: cxpr): cxpr {.importc:"cxfix".}
+
+#  Conversion's functions
+
+proc strtocx*(q: cstring; endptr: cstringArray): cxpr  {.importc:"strtocx".}
+proc atocx*(s: cstring): cxpr {.importc:"atocx".}
+proc cxpr_asprint*(z: cxpr; sc_not: cint; sign: cint; lim: cint): cstring {.importc:"cxpr_asprint".}
+proc cxtoa*(z: cxpr; lim: cint): cstring {.importc:"cxtoa".}
+proc dctocx*(re: cdouble; im: cdouble): cxpr {.importc:"dctocx".}
+proc fctocx*(re: cfloat; im: cfloat): cxpr {.importc:"fctocx".}
+proc ictocx*(re: clong; im: clong): cxpr {.importc:"ictocx".}
+proc uctocx*(re: culong; im: culong): cxpr {.importc:"uctocx".}
+proc cxtodc*(z: ptr cxpr; re: ptr cdouble; im: ptr cdouble) {.importc:"cxtodc".}
+proc cxtofc*(z: ptr cxpr; re: ptr cfloat; im: ptr cfloat) {.importc:"cxtofc".}
+
+template CXRESET*(re, im: untyped): untyped =
+  cast[cxpr]((re, im))
+
+template CXCONV*(x: untyped): untyped =
+  cast[cxpr]((x, xZero))
+
+template CXRE*(z: untyped): untyped =
+  (z).re
+
+template CXIM*(z: untyped): untyped =
+  (z).im
+
+template CXSWAP*(z: untyped): untyped =
+  cast[cxpr](((z).im, (z).re))
+
+# cxpr wrapper
+
+converter ftoc*(f:float):cxpr=cxpr(re:f, im:0)
+converter itoc*(i:int):cxpr=cxpr(re:i, im:0)
+
+# aritmetics
+proc `+`*(x, y:cxpr):cxpr = cxsum(x,y)
+proc `-`*(x, y:cxpr):cxpr = cxsub(x,y)
+proc `*`*(x, y:cxpr):cxpr = cxmul(x,y)
+proc `/`*(x, y:cxpr):cxpr = cxdiv(x,y)
+
+# compare
+proc `==`*(x, y:cxpr):bool = cxeq(x,y)!=0
+proc `!=`*(x, y:cxpr):bool = cxeq(x,y)==0 # cxneq freezes echo
+proc `>`*(x, y:cxpr):bool = cxgt(x,y)!=0
+proc `<`*(x, y:cxpr):bool = cxlt(x,y)!=0
+proc `>=`*(x, y:cxpr):bool = cxge(x,y)!=0
+proc `<=`*(x, y:cxpr):bool = cxle(x,y)!=0
 
 # test
 
 
 when isMainModule:
-  var 
-    f0="123.56".xpr
-    f1=(345.67).xpr
-    f2=123456.xpr
-    f3=0
 
-  if f0==0:  echo f0, " is zero"
-  if f0==f0:  echo f0, " f0==f0"
-  if f0!=0:  echo f0, " is NOT zero"
-  echo f3,", f3==0 -> ", f3==0
-    
-  if f1>f0: echo f1, " > ", f0
-  if f0<f1: echo f0, " < ", f1
+  proc test_xpr* = 
+    var 
+      f0="123.56".xpr
+      f1=(345.67).xpr
+      f2=123456.xpr
+      f3=0
 
-  echo "f0^f1:", f0.pow(f1)
+    if f0==0:  echo f0, " is zero"
+    if f0==f0:  echo f0, " f0==f0"
+    if f0!=0:  echo f0, " is NOT zero"
+    echo f3,", f3==0 -> ", f3==0
+      
+    if f1>f0: echo f1, " > ", f0
+    if f0<f1: echo f0, " < ", f1
 
-  f0="123.456".xpr
-  for i in 0..1530:
-    f1=f1*345.67
-    f0=f0*f0
+    echo "f0^f1:", f0.pow(f1)
 
-  echo f1, ",", f2.sin.tostr(7)
+    f0="123.456".xpr
+    for i in 0..1530:
+      f1=f1*345.67
+      f0=f0*f0
+
+    echo f1, ",", f2.sin.tostr(7)
+
+  proc test_cxpr = 
+    var 
+      c0=cxpr(re:2.9,im:1.89)
+      c1=c0+1
+
+    echo c0, ",", c1, ", c0+c1=", c0+c1
+    echo c0*c1
+    echo c1/c0
+    echo c0 == c1
+    echo c0 != 0
+    echo c0 <= c1
+    echo c0 < c1
+    echo c0 >= c1
+    echo c0 > c1
+    echo c1 != c0
+    echo c1.sin.cos.log.sinh
+
+
+  test_cxpr()
