@@ -1,13 +1,10 @@
 #[
 
-high precission 
-
-
 HPA 1.7 wrapper
 
 range:  1.19*10^4932 > x > 1.68*10^-[4932].
 
- to set precission in hpa set
+ to set precision in hpa set
    MANTSIZE_MACRO= -DXMANTISSA_SIZE=62 (default 7)
    in GNUmakefile
    sudo make -f GNUmakefile install
@@ -27,8 +24,6 @@ source: https://www.nongnu.org/hpalib/
 
 nim hpa wrapper, requires hpalib.a / .lib & -lm
 
- make -f GNUmakefile
- sudo make -f GNUmakefile install 
 ]#
 
 {.passL: "-lhpa -lm".} # libs required
@@ -37,7 +32,7 @@ const
   HPA_VERSION* = "1.7"
   XLITTLE_ENDIAN* = 1
   #[ 
-    to set precission in hpa set
+    to set precision in hpa set
    MANTSIZE_MACRO= -DXMANTISSA_SIZE=62 
    in GNUmakefile
   ]#
