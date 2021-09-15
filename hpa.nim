@@ -1,9 +1,16 @@
 #[
 
+high precission 
+
+
 HPA 1.7 wrapper
 
 range:  1.19*10^4932 > x > 1.68*10^-[4932].
-so it's basically  a c long double
+
+ to set precission in hpa set
+   MANTSIZE_MACRO= -DXMANTISSA_SIZE=62 (default 7)
+   in GNUmakefile
+   sudo make -f GNUmakefile install
 
 The High Precision Arithmetic library (HPAlib) implements a high precision floating point arithmetic together with a comprehensive set of support functions. 
 The general areas covered by these functions include:
@@ -29,24 +36,14 @@ nim hpa wrapper, requires hpalib.a / .lib & -lm
 const
   HPA_VERSION* = "1.7"
   XLITTLE_ENDIAN* = 1
-  XDIM* = 7
-  XULONG_BITSIZE* = 64
+  #[ 
+    to set precission in hpa set
+   MANTSIZE_MACRO= -DXMANTISSA_SIZE=62 
+   in GNUmakefile
+  ]#
+  XDIM* = 64 # this is for > f1024   
+  XULONG_BITSIZE* = 64 # default value is 7
   XERR_DFL* = 1
-
-  XMAX_10EX* = 4931
-  XMAX_DEGREE* = 50
-
-
-when not defined(XERR_IGN):
-  const
-    XENONE* = 0
-    XEDIV* = 1
-    XEDOM* = 2
-    XEBADEXP* = 3
-    XFPOFLOW* = 4
-    XNERR* = 4
-    XEINV* = 5
-
 
 type xpr* {.bycopy.} = object
     nmm*: array[XDIM + 1, cushort]
@@ -149,6 +146,10 @@ proc `+`*(x, y:xpr):xpr = xsum(x,y)
 proc `-`*(x, y:xpr):xpr = xsub(x,y)
 proc `*`*(x, y:xpr):xpr = xmul(x,y)
 proc `/`*(x, y:xpr):xpr = xdiv(x,y)
+proc `+=`*(x:var xpr, y:xpr) = x=xsum(x,y)
+proc `-=`*(x:var xpr, y:xpr) = x=xsub(x,y)
+proc `*=`*(x:var xpr, y:xpr) = x=xmul(x,y)
+proc `/=`*(x:var xpr, y:xpr) = x=xdiv(x,y)
 
 # compare
 proc `==`*(x, y:xpr):bool = xeq(x,y)!=0
@@ -293,9 +294,14 @@ proc `-`*(x, y:cxpr):cxpr = cxsub(x,y)
 proc `*`*(x, y:cxpr):cxpr = cxmul(x,y)
 proc `/`*(x, y:cxpr):cxpr = cxdiv(x,y)
 
+proc `+=`*(x:var cxpr, y:cxpr) = x = cxsum(x,y)
+proc `-=`*(x:var cxpr, y:cxpr) = x = cxsub(x,y)
+proc `*=`*(x:var cxpr, y:cxpr) = x = cxmul(x,y)
+proc `/=`*(x:var cxpr, y:cxpr) = x = cxdiv(x,y)
+ 
 # compare
 proc `==`*(x, y:cxpr):bool = cxeq(x,y)!=0
-proc `!=`*(x, y:cxpr):bool = cxeq(x,y)==0 # cxneq freezes echo
+proc `!=`*(x, y:cxpr):bool = cxeq(x,y)==0 # cxneq freezes echo ??
 proc `>`*(x, y:cxpr):bool = cxgt(x,y)!=0
 proc `<`*(x, y:cxpr):bool = cxlt(x,y)!=0
 proc `>=`*(x, y:cxpr):bool = cxge(x,y)!=0
@@ -306,11 +312,15 @@ proc `<=`*(x, y:cxpr):bool = cxle(x,y)!=0
 
 when isMainModule:
 
+  type 
+    f1024=xpr
+    c1024=cxpr
+
   proc test_xpr* = 
     var 
-      f0="123.56".xpr
-      f1=(345.67).xpr
-      f2=123456.xpr
+      f0="123.56".f1024
+      f1=(345.67).f1024
+      f2=123456.f1024
       f3=0
 
     if f0==0:  echo f0, " is zero"
@@ -323,16 +333,27 @@ when isMainModule:
 
     echo "f0^f1:", f0.pow(f1)
 
-    f0="123.456".xpr
+    f0="123.456".f1024
     for i in 0..1530:
       f1=f1*345.67
       f0=f0*f0
 
     echo f1, ",", f2.sin.tostr(7)
 
+    # divide 1 / 2 until 0
+    var 
+      fd1=1.f1024
+      i=0
+    while fd1!=0:
+      echo i,":",fd1
+      fd1 /= 2
+      i.inc
+    echo i,":",fd1
+
+
   proc test_cxpr = 
     var 
-      c0=cxpr(re:2.9,im:1.89)
+      c0=c1024(re:2.9, im:1.89)
       c1=c0+1
 
     echo c0, ",", c1, ", c0+c1=", c0+c1
@@ -346,6 +367,8 @@ when isMainModule:
     echo c0 > c1
     echo c1 != c0
     echo c1.sin.cos.log.sinh
+    echo "using f",xpr.sizeof*8
 
 
+  test_xpr()
   test_cxpr()
