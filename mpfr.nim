@@ -8,23 +8,32 @@
 
 import math
 
-var
-  mpfr_precision*: int = 1024 # mantissa
-  mpfr_digits* = 5
 
 {.passL: "-lmpfr -lgmp".} # libs required
 
 const mpfr_header* = "<mpfr.h>"
 
-type mpfr_rnd_t = enum
-  MPFR_RNDNA = -1 # round to nearest, with ties away from zero (mpfr_round)
+type 
+  mpfr_rnd_t = enum
+    MPFR_RNDNA = -1 # round to nearest, with ties away from zero (mpfr_round)
 
-  MPFR_RNDN = 0   # round to nearest, with ties to even
-  MPFR_RNDZ = 1   # round toward zero
-  MPFR_RNDU = 2   # round toward +Inf
-  MPFR_RNDD = 3   # round toward -Inf
-  MPFR_RNDA = 4   # round away from zero
-  MPFR_RNDF = 5   # faithful rounding
+    MPFR_RNDN = 0   # round to nearest, with ties to even
+    MPFR_RNDZ = 1   # round toward zero
+    MPFR_RNDU = 2   # round toward +Inf
+    MPFR_RNDD = 3   # round toward -Inf
+    MPFR_RNDA = 4   # round away from zero
+    MPFR_RNDF = 5   # faithful rounding
+
+  mpfr_kind_t = enum
+    MPFR_NAN_KIND     = 0
+    MPFR_INF_KIND     = 1
+    MPFR_ZERO_KIND    = 2
+    MPFR_REGULAR_KIND = 3
+
+var
+  mpfr_precision*: int = 1024 # mantissa
+  mpfr_digits* = 5
+  mpfr_rand* = MPFR_RNDZ # default round method
 
 type
   mpfr_prec_t = clong
@@ -41,7 +50,6 @@ type
   mpfr_t = mpfr
 
 
-const default_rnd = MPFR_RNDZ # default round method
 
 # https://www.mpfr.org/mpfr-current/mpfr.html#MPFR-Basics
 
@@ -114,6 +122,21 @@ proc mpfr_tan (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc: "mpfr_tan".}
 proc mpfr_log (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc: "mpfr_log".}
 proc mpfr_exp (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc: "mpfr_exp".}
 
+# constants
+proc mpfr_const_log2( rop:mpfr_t,  rnd:mpfr_rnd_t) :cint {.importc: "mpfr_const_log2".}
+proc mpfr_const_euler( rop:mpfr_t,  rnd:mpfr_rnd_t) :cint {.importc: "mpfr_const_euler".}
+proc mpfr_const_catalan( rop:mpfr_t,  rnd:mpfr_rnd_t) :cint {.importc: "mpfr_const_catalan".}
+proc mpfr_const_pi( rop:mpfr_t,  rnd:mpfr_rnd_t) :cint {.importc: "mpfr_const_pi".}
+
+# custom interface
+proc mpfr_custom_get_size (prec: mpfr_prec_t ) : csize_t  {.importc: "mpfr_custom_get_size".}
+proc mpfr_custom_init (significand: pointer,  prec: mpfr_prec_t) {.importc: "mpfr_custom_init".}
+proc mpfr_custom_init_set (x:mpfr_t,  kind:mpfr_kind_t,  exp:mpfr_exp_t, prec:mpfr_prec_t, significand:pointer) {.importc: "mpfr_custom_init_set".}
+proc mpfr_custom_get_kind (x:mpfr_t) : cint {.importc: "mpfr_custom_get_kind".}
+proc mpfr_custom_get_significand (x:mpfr_t) : pointer  {.importc: "mpfr_custom_get_significand".}
+proc mpfr_custom_get_exp (x:mpfr_t) : mpfr_exp_t {.importc: "mpfr_custom_get_exp".}
+proc mpfr_custom_move (x:mpfr_t, new_position:pointer) {.importc: "mpfr_custom_move".}
+
 #[
   nim wrapper
 ]#
@@ -123,16 +146,19 @@ proc set_digits*(n: int) = mpfr_digits = n
 
 proc init_val(x: mpfr_t, v: float) =
   mpfr_init2(x, mpfr_precision)
-  discard mpfr_set_d(x, v.cdouble, default_rnd)
+  discard mpfr_set_d(x, v.cdouble, mpfr_rand)
 proc init_val(x: mpfr_t, v: string) =
   mpfr_init2(x, mpfr_precision)
-  discard mpfr_set_str(x, v.cstring, 10, default_rnd)
+  discard mpfr_set_str(x, v.cstring, 10, mpfr_rand)
+
 proc is_init*(x: mpfr): bool = x.mpfr_prec != 0
+proc reset*(x: var mpfr) = x.mpfr_prec = 0
 proc is_notinit*(x: mpfr): bool = x.mpfr_prec == 0
 
 proc with_val*(x: mpfr, value: float = 0.0): mpfr = discard mpfr_set_d(x,
-    value.cdouble, default_rnd)
-proc set(x: var mpfr, y: mpfr) = discard mpfr_set(x, y, default_rnd)
+    value.cdouble, mpfr_rand)
+proc set*(x: var mpfr, y: mpfr) = discard mpfr_set(x, y, mpfr_rand)
+proc `:=`*(x: var mpfr, y: mpfr) = discard mpfr_set(x, y, mpfr_rand)
 
 proc newMpfr*(): mpfr = init_val(result, 0.0)
 
@@ -154,13 +180,13 @@ proc set_prec*(x: var mpfr, prec: int) = mpfr_set_prec(x, prec.mpfr_prec_t)
 proc get_exp_range*: (int, int) = (mpfr_get_emin().int, mpfr_get_emax().int)
 
 converter itom*(i: int): mpfr = result = newMpfr(); discard mpfr_set_ui(result,
-    i.culong, default_rnd)
+    i.culong, mpfr_rand)
 converter ftom*(f: float): mpfr = result = newMpfr(); discard mpfr_set_d(result,
-    f.cdouble, default_rnd)
+    f.cdouble, mpfr_rand)
 converter stom*(s: string): mpfr = result = newMpfr(); discard mpfr_set_str(
-    result, s.cstring, 10, default_rnd)
-converter mtof*(x: mpfr): float = mpfr_get_d(x, default_rnd).float
-converter mtof32*(x: mpfr): float32 = mpfr_get_flt(x, default_rnd).float32
+    result, s.cstring, 10, mpfr_rand)
+converter mtof*(x: mpfr): float = mpfr_get_d(x, mpfr_rand).float
+converter mtof32*(x: mpfr): float32 = mpfr_get_flt(x, mpfr_rand).float32
 
 proc `$`(x: mpfr): string =
   if x.is_init():
@@ -169,7 +195,7 @@ proc `$`(x: mpfr): string =
       exp: mpfr_exp_t
 
     discard mpfr_get_str(str.unsafeAddr, exp.unsafeAddr, 10.cint,
-        mpfr_digits.csize_t, x, default_rnd)
+        mpfr_digits.csize_t, x, mpfr_rand)
     for i, c in str: result.add(c)
     result.insert("0.", 0)
     result &= "e" & $exp
@@ -180,45 +206,56 @@ proc dump(x: mpfr) =
   echo "prec:", x.mpfr_prec, ", sign:", x.mpfr_sign, ", exp:", x.mpfr_exp,
       ", limb:", x.mpfr_d
 
+# custom 
+proc cinit(x:var mpfr)=
+  let p = alloc0(mpfr_custom_get_size(mpfr_precision))
+  mpfr_custom_init(p, mpfr_precision)
+  mpfr_custom_init_set(x, MPFR_ZERO_KIND, 0, mpfr_precision, p)
+
+proc cfree(x:var mpfr)=
+  x.reset # so it's not destroyed
+  dealloc(mpfr_custom_get_significand(x))
+
+
 # arithmetics
-proc `+`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_add(result, x, y, default_rnd)
-proc `-`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_sub(result, x, y, default_rnd)
-proc `-`*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_neg(result, x, default_rnd)
-proc `*`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_mul(result, x, y, default_rnd)
-proc `/`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_div(result, x, y, default_rnd)
+proc `+`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_add(result, x, y, mpfr_rand)
+proc `-`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_sub(result, x, y, mpfr_rand)
+proc `-`*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_neg(result, x, mpfr_rand)
+proc `*`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_mul(result, x, y, mpfr_rand)
+proc `/`*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_div(result, x, y, mpfr_rand)
 
 proc `+`*(x: mpfr, y: float): mpfr = result = newMpfr(); discard mpfr_add_d(
-    result, x, y, default_rnd)
+    result, x, y, mpfr_rand)
 proc `-`*(x: mpfr, y: float): mpfr = result = newMpfr(); discard mpfr_sub_d(
-    result, x, y, default_rnd)
+    result, x, y, mpfr_rand)
 proc `*`*(x: mpfr, y: float): mpfr = result = newMpfr(); discard mpfr_mul_d(
-    result, x, y, default_rnd)
+    result, x, y, mpfr_rand)
 proc `/`*(x: mpfr, y: float): mpfr = result = newMpfr(); discard mpfr_div_d(
-    result, x, y, default_rnd)
+    result, x, y, mpfr_rand)
 
 proc `+`*(x: mpfr, y: string): mpfr = result = newMpfr(); discard mpfr_add(
-    result, x, y.stom, default_rnd)
+    result, x, y.stom, mpfr_rand)
 proc `-`*(x: mpfr, y: string): mpfr = result = newMpfr(); discard mpfr_sub(
-    result, x, y.stom, default_rnd)
+    result, x, y.stom, mpfr_rand)
 proc `*`*(x: mpfr, y: string): mpfr = result = newMpfr(); discard mpfr_mul(
-    result, x, y.stom, default_rnd)
+    result, x, y.stom, mpfr_rand)
 proc `/`*(x: mpfr, y: string): mpfr = result = newMpfr(); discard mpfr_div(
-    result, x, y.stom, default_rnd)
+    result, x, y.stom, mpfr_rand)
 
-proc `+=`*(x: var mpfr, y: mpfr) = discard mpfr_add(x, x, y, default_rnd)
-proc `-=`*(x: var mpfr, y: mpfr) = discard mpfr_sub(x, x, y, default_rnd)
-proc `*=`*(x: var mpfr, y: mpfr) = discard mpfr_mul(x, x, y, default_rnd)
-proc `/=`*(x: var mpfr, y: mpfr) = discard mpfr_div(x, x, y, default_rnd)
+proc `+=`*(x: var mpfr, y: mpfr) = discard mpfr_add(x, x, y, mpfr_rand)
+proc `-=`*(x: var mpfr, y: mpfr) = discard mpfr_sub(x, x, y, mpfr_rand)
+proc `*=`*(x: var mpfr, y: mpfr) = discard mpfr_mul(x, x, y, mpfr_rand)
+proc `/=`*(x: var mpfr, y: mpfr) = discard mpfr_div(x, x, y, mpfr_rand)
 
-proc `+=`*(x: var mpfr, y: float) = discard mpfr_add_d(x, x, y, default_rnd)
-proc `-=`*(x: var mpfr, y: float) = discard mpfr_sub_d(x, x, y, default_rnd)
-proc `*=`*(x: var mpfr, y: float) = discard mpfr_mul_d(x, x, y, default_rnd)
-proc `/=`*(x: var mpfr, y: float) = discard mpfr_div_d(x, x, y, default_rnd)
+proc `+=`*(x: var mpfr, y: float) = discard mpfr_add_d(x, x, y, mpfr_rand)
+proc `-=`*(x: var mpfr, y: float) = discard mpfr_sub_d(x, x, y, mpfr_rand)
+proc `*=`*(x: var mpfr, y: float) = discard mpfr_mul_d(x, x, y, mpfr_rand)
+proc `/=`*(x: var mpfr, y: float) = discard mpfr_div_d(x, x, y, mpfr_rand)
 
-proc `+=`*(x: var mpfr, y: string) = discard mpfr_add(x, x, y.stom, default_rnd)
-proc `-=`*(x: var mpfr, y: string) = discard mpfr_sub(x, x, y.stom, default_rnd)
-proc `*=`*(x: var mpfr, y: string) = discard mpfr_mul(x, x, y.stom, default_rnd)
-proc `/=`*(x: var mpfr, y: string) = discard mpfr_div(x, x, y.stom, default_rnd)
+proc `+=`*(x: var mpfr, y: string) = discard mpfr_add(x, x, y.stom, mpfr_rand)
+proc `-=`*(x: var mpfr, y: string) = discard mpfr_sub(x, x, y.stom, mpfr_rand)
+proc `*=`*(x: var mpfr, y: string) = discard mpfr_mul(x, x, y.stom, mpfr_rand)
+proc `/=`*(x: var mpfr, y: string) = discard mpfr_div(x, x, y.stom, mpfr_rand)
 
 # comparision
 proc `==`*(x, y: mpfr): bool = mpfr_cmp(x, y) == 0
@@ -245,21 +282,27 @@ proc `<`*(x: mpfr, y: string): bool = mpfr_cmp(x, y.stom) < 0
 
 # funcs
 proc `!`*(n: uint): mpfr = result = newMpfr(); discard mpfr_fac_ui(result,
-    n.culong, default_rnd)
-proc sqrt*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_sqrt(result, x, default_rnd)
+    n.culong, mpfr_rand)
+proc sqrt*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_sqrt(result, x, mpfr_rand)
 proc root*(x: mpfr, n: int): mpfr = result = newMpfr(); discard mpfr_rootn_ui(
-    result, x, n.culong, default_rnd)
+    result, x, n.culong, mpfr_rand)
 proc atan2*(y, x: mpfr): mpfr = result = newMpfr(); discard mpfr_atan2(result,
-    x, y, default_rnd)
-proc pow*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_pow(result, x, y, default_rnd)
-proc sin*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_sin(result, x, default_rnd)
-proc sinh*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_sinh(result, x, default_rnd)
-proc cos*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_cos(result, x, default_rnd)
-proc cosh*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_cosh(result, x, default_rnd)
-proc tan*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_tan(result, x, default_rnd)
-proc log*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_log(result, x, default_rnd)
-proc exp*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_exp(result, x, default_rnd)
+    x, y, mpfr_rand)
+proc pow*(x, y: mpfr): mpfr = result = newMpfr(); discard mpfr_pow(result, x, y, mpfr_rand)
+proc sin*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_sin(result, x, mpfr_rand)
+proc sinh*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_sinh(result, x, mpfr_rand)
+proc cos*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_cos(result, x, mpfr_rand)
+proc cosh*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_cosh(result, x, mpfr_rand)
+proc tan*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_tan(result, x, mpfr_rand)
+proc log*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_log(result, x, mpfr_rand)
+proc exp*(x: mpfr): mpfr = result = newMpfr(); discard mpfr_exp(result, x, mpfr_rand)
 proc sign*(x: mpfr): cint = mpfr_signbit(x)
+
+# consts
+proc log2*() : mpfr = result = newMpfr(); discard mpfr_const_log2(result, mpfr_rand)
+proc e*() : mpfr = result = newMpfr(); discard mpfr_const_euler(result, mpfr_rand)
+proc catalan*() : mpfr = result = newMpfr(); discard mpfr_const_catalan(result, mpfr_rand)
+proc pi*() : mpfr = result = newMpfr(); discard mpfr_const_pi(result, mpfr_rand)
 
 
 ## complex
@@ -274,7 +317,7 @@ proc dump*(z: cmpfr) =
   z.re.dump()
   z.im.dump()
 
-proc arg(z: cmpfr): mpfr = atan2(z.im, z.re)
+proc arg*(z: cmpfr): mpfr = atan2(z.im, z.re)
 proc sqmag*(z: cmpfr): mpfr = z.re*z.re + z.im*z.im
 proc abs*(z: cmpfr): mpfr = z.sqmag.sqrt
 
@@ -485,8 +528,36 @@ when isMainModule:
 
     echo xx, xx0, xx1
 
+    echo "pi=", pi(), ", e=", e(), ", catalan=", catalan(), ", log2=", log2()
+
     echo "end"
 
+import strutils
+proc test_custom=
+
+  echo "need ",mpfr_custom_get_size(mpfr_precision), " bytes, for a ", mpfr_precision, " bit precision"
+  var x,y,z:mpfr
+
+  echo "before init, x is init:", x.is_init
+
+  cinit(x)
+  cinit(y)
+
+  echo "after cust init x is init:", x.is_init
+  x := pi()*200.0 # set not =copy
+  y := 678.89
+
+  x+=y
+  z=x # z is not custom so it can be assigned
+  
+  echo "z=", z, ", z==x:", z==x
+  echo "x=", x, ", y=", y, ", kind=", mpfr_custom_get_kind(x), ", pointer=", cast[uint](mpfr_custom_get_significand(x)).toHex
+
+  cfree(x)
+  cfree(y)
+
+
+test_custom()
 test_mpfr()
 test_mpfr_init()
 test_cmpfr()
