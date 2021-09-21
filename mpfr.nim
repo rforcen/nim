@@ -66,6 +66,8 @@ proc mpfr_get_emax: mpfr_exp_t {.importc: "mpfr_get_emax".}
 # assignment
 proc mpfr_set(rop: mpfr_t, op: mpfr_t, rnd: mpfr_rnd_t): cint {.
     importc: "mpfr_set".}
+proc mpfr_set_zero(x:mpfr, sign:cint=0) {.importc: "mpfr_set_zero".}
+proc mpfr_swap(x,y: mpfr_t) {.importc: "mpfr_swap".}
 proc mpfr_set_ui (rop: mpfr_t, op: culong, rnd: mpfr_rnd_t): cint {.
     importc: "mpfr_set_ui".}
 proc mpfr_set_d(rop: mpfr_t, op: cdouble, rnd: mpfr_rnd_t): cint {.
@@ -158,6 +160,8 @@ proc is_notinit*(x: mpfr): bool = x.mpfr_prec == 0
 proc with_val*(x: mpfr, value: float = 0.0): mpfr = discard mpfr_set_d(x,
     value.cdouble, mpfr_rand)
 proc set*(x: var mpfr, y: mpfr) = discard mpfr_set(x, y, mpfr_rand)
+proc zero*(x:var mpfr) = mpfr_set_zero(x) # x=0
+proc swap*(x,y: mpfr) = mpfr_swap(x, y)
 proc `:=`*(x: var mpfr, y: mpfr) = discard mpfr_set(x, y, mpfr_rand)
 
 proc newMpfr*(): mpfr = init_val(result, 0.0)
@@ -419,10 +423,11 @@ when isMainModule:
     echo "x1=", x1, ", x2=", x2
     x1 = "123.456"
     let x11 = x1+x2
-
+    echo x11
     var x3 = newMpfr()
 
     let xxx4 = x1+x2.cos.tan
+    echo xxx4
     for i in 0..10000: x3 = x1.sin.cos.tan
 
     echo "x3=", $x3, ", x1=", $x1
@@ -556,11 +561,11 @@ proc test_custom=
   cfree(x)
   cfree(y)
 
-
+echo "-------------------- mpfr test"
 test_custom()
 test_mpfr()
 test_mpfr_init()
 test_cmpfr()
 test_cmpfr_init()
 
-echo "ok"
+echo "-------------------- ok"
