@@ -21,7 +21,7 @@ proc newQ*[T: SomeFloat](r: T): Quaternion[T] = Quaternion[T](r: r, i: 0.0,
 proc newQ*[T: SomeFloat](r, i, j, k: T): Quaternion[T] = Quaternion[T](r: r,
     i: i, j: j, k: k)
 
-# aritmetic operators
+# arithmetic operators
 proc `+`*[T: SomeFloat](s, q: Quaternion[T]): Quaternion[T] = newQ(s.r + q.r,
     s.i + q.i, s.j + q.j, s.k + q.k)
 proc `-`*[T: SomeFloat](s, q: Quaternion[T]): Quaternion[T] = newQ(s.r - q.r,
