@@ -1,10 +1,10 @@
 #[
    basic unsafe vec ptr based with len(int) at p[0]
    usage:
-     var v=vec[float](1000)
+     var v=vec[float](100)
 
-     for vi in v:
-       vi=i.float 
+     for i, vi in v.mpairs:  vi=i.float 
+     for vi in v: echo vi
      v.free
 
 ]#
@@ -115,5 +115,11 @@ when isMainModule:
         v.free
         v1.free
         v2.free
+
+        var v3=vec[float](10)
+
+        for i, vi in v3.mpairs:  vi=i.float 
+        for vi in v3: echo vi
+        v.free
 
     test_miniv()
