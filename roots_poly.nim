@@ -56,7 +56,7 @@ proc laguer(a: var seq[Complex64], x: var Complex64, its: var int) =
 
   error "too many iterations in laguer"
 
-proc zroots(a, roots: var seq[Complex64], polish: bool) =
+proc zroots*(a, roots: var seq[Complex64], polish: bool) =
 
   const EPS = 1.0e-14
   var
