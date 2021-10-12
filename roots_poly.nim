@@ -2,6 +2,7 @@
 
 import complex, algorithm, logging
 
+const EPS = 2.22045e-16 # numeric_limits<Doub>::epsilon()
 
 proc zroots*(a, roots: var seq[Complex64], polish: bool) =
   proc laguer(a: var seq[Complex64], x: var Complex64, its: var int) =
@@ -9,7 +10,6 @@ proc zroots*(a, roots: var seq[Complex64], polish: bool) =
       MR = 8
       MT = 10
       MAXIT = MT * MR
-      EPS = 2.22045e-16 # numeric_limits<Doub>::epsilon()
       frac = [0.0, 0.5, 0.25, 0.75, 0.13, 0.38, 0.62, 0.88, 1.0]
 
     let m = a.len - 1
@@ -59,7 +59,7 @@ proc zroots*(a, roots: var seq[Complex64], polish: bool) =
     error "too many iterations in laguer"
 
 
-  const EPS = 1.0e-14
+  # const EPS = 1.0e-14
   var
     its: int
     m = a.len - 1
@@ -89,22 +89,27 @@ proc zroots*(a, roots: var seq[Complex64], polish: bool) =
 
   roots.sort(proc (x, y: Complex64): int = (if x.re < y.re: -1 else: 1))
 
-
+proc eval_poly*(c:seq[Complex64], x:Complex64) : Complex64 =
+  result = c[0]
+  var p = x
+  for i in 1..c.high:
+    result += p * c[i] 
+    p*=x
 
 when isMainModule:
-  import random
-
-  let n = 10
-  var
-    a = newSeq[Complex64](n)
-    roots = newSeq[Complex64](n-1)
+  import random, sequtils, sugar
 
   randomize()
-  for i in 0..<n:
-    # a[i]=complex64(rand(1.0), rand(1.0))
-    a[i] = complex64(i.float, i.float)
-  echo "roots for 0..<10 : (-0.6924,0.2405)        (-0.6924,-0.2405)       (-0.3986,0.6256)        (-0.3986,-0.6256)       (0.0000,0.0000) (0.0792,0.7580) (0.0792,-0.7580)        (0.5673,0.5703) (0.5673,-0.5703)"
-  # echo "roots for 0..<5: (-0.6058,0.0000)        (-0.0721,0.6383)        (-0.0721,-0.6383)       (0.0000,0.0000)"
+
+  let n = 40
+  var
+    a = toSeq(0..<n).map(x => complex64(rand(1.0), rand(1.0))) # newSeq[Complex64](n)
+    roots = a[0..^2]
+
   zroots(a, roots, true)
-  echo a
-  echo roots
+  # echo a
+  # echo roots
+  echo "check roots poly order...", n
+
+  assert all(roots, proc (x: Complex64): bool = a.eval_poly(x).abs  < 1e-9) == true
+  echo "ok"
