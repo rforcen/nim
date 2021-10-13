@@ -1,11 +1,17 @@
-# poly roots
+# poly roots laguerre method, float coeff, complex roots
 
-import complex, algorithm, logging
+import complex, algorithm, sequtils, sugar
 
 const EPS = 2.22045e-16 # numeric_limits<Doub>::epsilon()
 
-proc zroots*(a, roots: var seq[Complex64], polish: bool) =
-  proc laguer(a: var seq[Complex64], x: var Complex64, its: var int) =
+converter ftoc(f: float): Complex64 = complex64(f, 0.0)
+proc polarc(p:Complex64): Complex64 = 
+  let pp = p.polar
+  complex64(pp.r, pp.phi)
+
+# real coeff
+proc zroots*(a: seq[float], roots: var seq[Complex64], polish: bool) =
+  proc laguer(a: seq[Complex64], x: var Complex64, its: var int) =
     const
       MR = 8
       MT = 10
@@ -46,9 +52,7 @@ proc zroots*(a, roots: var seq[Complex64], polish: bool) =
       if abp < abm: gp = gm
 
       var dx = if max(abp, abm) > 0.0: m.float / gp
-      else:
-        let p = complex64(1.0 + abx, iter.float).polar
-        complex64(p.r, p.phi)
+      else: complex64(1.0 + abx, iter.float).polarc
 
       var x1 = x - dx
       if x == x1: return
@@ -56,16 +60,16 @@ proc zroots*(a, roots: var seq[Complex64], polish: bool) =
       if iter %% MT != 0: x = x1
       else: x -= frac[iter div MT] * dx
 
-    error "too many iterations in laguer"
+    raise newException(ArithmeticDefect, "roots not found, too many iterations in laguer")
 
 
-  # const EPS = 1.0e-14
   var
     its: int
     m = a.len - 1
     ad = newSeq[Complex64](m+1)
+    ac = a.map(x => x.ftoc)
 
-  ad[0..m] = a[0..m] # for j in 0..m:  ad[j] = a[j]
+  for j in 0..m: ad[j] = a[j]
 
   for j in countdown(m-1, 0):
     var
@@ -73,21 +77,30 @@ proc zroots*(a, roots: var seq[Complex64], polish: bool) =
       ad_v = ad[0..<j+2]
     
     laguer(ad_v, x, its)
-    if x.im.abs <= 2.0 * EPS * x.re.abs:  x = complex64(x.re, 0.0)
+
+    if x.im.abs <= 2.0 * EPS * x.re.abs:  x = x.re
 
     roots[j] = x
-    var b = ad[j + 1]
 
+    var b = ad[j + 1]
     for jj in countdown(j, 0):
       var c = ad[jj]
       ad[jj] = b
       b = x * b + c
 
   if polish:
-    for j in 0..<m:
-      laguer(a, roots[j], its)
+    for r in roots.mitems:
+      laguer(ac, r, its)
 
+  # sort by re
   roots.sort(proc (x, y: Complex64): int = (if x.re < y.re: -1 else: 1))
+
+proc eval_poly*(c:seq[float], x:Complex64) : Complex64 =
+  result = complex64(c[0],0)
+  var p = x
+  for i in 1..c.high:
+    result += p * c[i] 
+    p*=x
 
 proc eval_poly*(c:seq[Complex64], x:Complex64) : Complex64 =
   result = c[0]
@@ -97,19 +110,20 @@ proc eval_poly*(c:seq[Complex64], x:Complex64) : Complex64 =
     p*=x
 
 when isMainModule:
-  import random, sequtils, sugar
+  import random
 
   randomize()
 
-  let n = 40
   var
-    a = toSeq(0..<n).map(x => complex64(rand(1.0), rand(1.0))) # newSeq[Complex64](n)
-    roots = a[0..^2]
+    ar = @[-1.float,1,1,1,2,3,4,5,-6]
+    roots = newSeq[Complex64](ar.len-1)
 
-  zroots(a, roots, true)
-  # echo a
-  # echo roots
-  echo "check roots poly order...", n
+  zroots(ar, roots, true)
 
-  assert all(roots, proc (x: Complex64): bool = a.eval_poly(x).abs  < 1e-9) == true
-  echo "ok"
+  echo "check roots poly order...", ar.len
+
+  var s=0.0
+  for r in roots: 
+    echo r
+    s+=eval_poly(ar, r).abs
+  echo "avg. error:",s/roots.len.float
