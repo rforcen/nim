@@ -5,9 +5,8 @@ import complex, algorithm, sequtils, sugar
 const EPS = 2.22045e-16 # numeric_limits<Doub>::epsilon()
 
 converter ftoc(f: float): Complex64 = complex64(f, 0.0)
-proc polarc(p:Complex64): Complex64 = 
-  let pp = p.polar
-  complex64(pp.r, pp.phi)
+
+proc polarc(p:Complex64): Complex64 = complex64(p.polar.r, p.polar.phi)
 
 # real coeff
 proc zroots*(a: seq[float], roots: var seq[Complex64], polish: bool) =
@@ -51,8 +50,8 @@ proc zroots*(a: seq[float], roots: var seq[Complex64], polish: bool) =
 
       if abp < abm: gp = gm
 
-      var dx = if max(abp, abm) > 0.0: m.float / gp
-      else: complex64(1.0 + abx, iter.float).polarc
+      var dx = if max(abp, abm) > 0: m.float / gp
+      else: complex64(1 + abx, iter.float).polarc
 
       var x1 = x - dx
       if x == x1: return
@@ -61,7 +60,6 @@ proc zroots*(a: seq[float], roots: var seq[Complex64], polish: bool) =
       else: x -= frac[iter div MT] * dx
 
     raise newException(ArithmeticDefect, "roots not found, too many iterations in laguer")
-
 
   var
     its: int
@@ -78,7 +76,7 @@ proc zroots*(a: seq[float], roots: var seq[Complex64], polish: bool) =
     
     laguer(ad_v, x, its)
 
-    if x.im.abs <= 2.0 * EPS * x.re.abs:  x = x.re
+    if x.im.abs <= 2 * EPS * x.re.abs:  x = x.re
 
     roots[j] = x
 
@@ -102,12 +100,6 @@ proc eval_poly*(c:seq[float], x:Complex64) : Complex64 =
     result += p * c[i] 
     p*=x
 
-proc eval_poly*(c:seq[Complex64], x:Complex64) : Complex64 =
-  result = c[0]
-  var p = x
-  for i in 1..c.high:
-    result += p * c[i] 
-    p*=x
 
 when isMainModule:
   import random
