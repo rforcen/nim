@@ -4,7 +4,7 @@
 
 import complex, algorithm
 
-proc eval_poly(coeff:seq[float], x : Complex64) : Complex64 =
+proc eval_poly*(coeff:seq[float], x : Complex64) : Complex64 =
   let n = coeff.high
   var p = x
   result = complex64(coeff[n],0)
@@ -12,18 +12,15 @@ proc eval_poly(coeff:seq[float], x : Complex64) : Complex64 =
     result += coeff[n - i] * p
     p *= x
   
-
-proc poly(A : seq[float],  x : Complex64) : Complex64 =
-  let n = A.len
-  var p = complex64(1,0)
-  result = complex64(0,0)
-  for i in 0..<n:
-    result += A[n - i - 1] * p
-    p *= x
-  result += p
-  
-  
-proc roots(A : seq[float]) : seq[Complex64] =
+proc roots*(A : seq[float]) : seq[Complex64] =
+  proc poly(A : seq[float],  x : Complex64) : Complex64 =
+    let n = A.len
+    var p = complex64(1,0)
+    result = complex64(0,0)
+    for i in 0..<n:
+      result += A[n - i - 1] * p
+      p *= x
+    result += p
 
   let 
     n = A.high
@@ -54,8 +51,14 @@ proc roots(A : seq[float]) : seq[Complex64] =
   result.sort(proc (x, y: Complex64): int = (if x.re < y.re: -1 else: 1))
   
 when isMainModule:
-  let a = @[8.0, -8.0, 16.0, -16.0, 8.0, -8.0]
-  for r in roots(a):  echo r, ", err:", eval_poly(a, r).abs2
+  proc test_roots(op: seq[float]) =
+    echo "roots of ", op, ", degree:", op.len-1
 
-  let b = @[1.0, -55.0, 1320.0, -18150.0, 157773.0, -902055.0, 3416930.0, -8409500.0, 12753576.0, -10628640.0, 3628800.0]
-  for r in roots(b):  echo r, ", err:", eval_poly(b, r).abs2
+    var s = 0.0
+    for i, r in op.roots:
+      s += op.eval_poly(r).abs2
+      # echo i, ":", r, ", err:", op.eval_poly(r).abs
+    echo "avg err:", s/op.high.float
+
+  test_roots @[8.0, -8.0, 16.0, -16.0, 8.0, -8.0]
+  test_roots @[1.0, -55.0, 1320.0, -18150.0, 157773.0, -902055.0, 3416930.0, -8409500.0, 12753576.0, -10628640.0, 3628800.0]
