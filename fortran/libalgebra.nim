@@ -54,7 +54,7 @@ when isMainModule:
       A=newSeq[float32](n*n)
       B=newSeq[float32](n)
       descA = newDesc2d(A, n,n)
-      descB = newDEsc(B)
+      descB = newDesc(B)
 
     randomize()
     for i in 0..A.high: A[i]=rand(1.0)
