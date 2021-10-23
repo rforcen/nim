@@ -28,6 +28,8 @@ type
   drwav_container = enum 
     drwav_container_riff,  drwav_container_w64,  drwav_container_rf64
 
+  DataFormats* = int16 | int32 | float32
+
 
 # dr_wav wrapper
 proc drwav_version() : cstring {.header:dw_header, importc:"drwav_version_string".}
@@ -50,7 +52,7 @@ proc drwav_free(p:pointer, cbp:pointer) {.header:dw_header, importc:"drwav_free"
 #nim wrap
 proc dw_version*() : string = $drwav_version()
 
-proc read_wav*[T](file_name : string) : wav_def[T] = # let w = read_wav[float32]("test.wav")
+proc read_wav*[T : DataFormats](file_name : string) : wav_def[T] = # let w = read_wav[float32]("test.wav")
   var 
     channels, sample_rate: cuint 
     n_frames : uint64
@@ -69,7 +71,7 @@ proc read_wav*[T](file_name : string) : wav_def[T] = # let w = read_wav[float32]
 
   (channels.int, sample_rate.int, samples)
 
-proc write_wav* [T](file_name : string, format: WavFormat, samples: seq[T]) : bool =
+proc write_wav* [T : DataFormats](file_name : string, format: WavFormat, samples: seq[T]) : bool =
   var wav : drwav
 
   result = drwav_init_file_write(wav.addr, file_name.cstring, format.unsafeAddr, nil) == DRWAV_TRUE
@@ -78,10 +80,19 @@ proc write_wav* [T](file_name : string, format: WavFormat, samples: seq[T]) : bo
     result = drwav_write_pcm_frames(wav.addr, samples_to_write, samples[0].unsafeAddr) == samples_to_write
     drwav_uninit(wav.addr)
 
+proc write_wav* [T : DataFormats](file_name : string, channels, sampleRate : int, samples: seq[T]) : bool =
+    var format = WavFormat(container : drwav_container_riff.uint32, format : DR_WAVE_FORMAT_PCM, channels : channels.uint32, sampleRate : sampleRate.uint32, bitsPerSample:32)
+    
+    when T is int16: format.bitsPerSample = 16  # auto format
+    elif T is int32: discard
+    elif T is float32: format.format = DR_WAVE_FORMAT_IEEE_FLOAT
+
+    write_wav(file_name, format, samples)
+
 proc samples2secs*(format:WavFormat, samples:int):float=
   samples.float / format.sampleRate.float / format.channels.float
 
-proc print[T](r:wav_def[T])=
+proc print*[T](r:wav_def[T])=
   echo "channels   :", r.channels
   echo "sample rate:", r.sample_rate
   echo "n_frames   :", r.samples.len
@@ -89,7 +100,7 @@ proc print[T](r:wav_def[T])=
     echo "samples    :", r.samples[0..5] , r.samples[^5..^1]
 
 when isMainModule:
-  import random
+  import random, sugar
 
   let file_name = "test.wav"
 
@@ -116,16 +127,22 @@ when isMainModule:
 
   proc test_writewavf32=
 
-    var format = WavFormat(container : drwav_container_riff.uint32, format : DR_WAVE_FORMAT_IEEE_FLOAT, channels : 2, sampleRate : 22050, bitsPerSample : 32)
-    let n_samples=20000
+    let 
+      n_samples = 20000
+      sample_rate = 22050
+      channels = 2
 
-    var samples=newSeq[float32](n_samples)
-    for s in samples.mitems: s = 1 - 2*rand(1.0)
+    var format = WavFormat(container : drwav_container_riff.uint32, format : DR_WAVE_FORMAT_IEEE_FLOAT, channels : channels.uint32, sampleRate : sample_rate.uint32, bitsPerSample : 32)
+
+    let samples = collect(newSeq): # generate white noise
+      for i in 0..<n_samples:
+        (0.7 * (1 - 2 * rand(1.0))).float32
+
     echo "format   :", format
     echo "n_samples:", samples.len
     echo "seconds  :", format.samples2secs(n_samples)
     echo "writing samples:", samples[0..5], samples[^5..^1]
-    echo "write result   :", if write_wav[float32]("recording.wav", format, samples): "ok" else: "fail"
+    echo "write result   :", if write_wav[float32](file_name="recording.wav", channels=channels, sampleRate=sample_rate, samples=samples): "ok" else: "fail"
     echo ""
 
   echo "dw version  :", dw_version()
