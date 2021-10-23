@@ -4,7 +4,7 @@
 
 const 
   dw_header="dr_wav.h"
-  
+
   # Common data formats. 
   DR_WAVE_FORMAT_PCM* = 0x1
   DR_WAVE_FORMAT_ADPCM* = 0x2
@@ -91,7 +91,7 @@ proc print[T](r:wav_def[T])=
 when isMainModule:
   import random
 
-  let file_name = "/home/asd/Documents/_voicesync/wav/ah - Roberto.WAV"
+  let file_name = "test.wav"
 
   proc test_readwav(file_name:string)=
     let r = read_wav[int16](file_name)
@@ -129,6 +129,6 @@ when isMainModule:
     echo ""
 
   echo "dw version  :", dw_version()
-  # test_readwav(file_name)
+  test_readwav(file_name)
   test_writewavf32()
   test_readrec()
