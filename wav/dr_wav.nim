@@ -28,7 +28,7 @@ type
   drwav_container = enum 
     drwav_container_riff,  drwav_container_w64,  drwav_container_rf64
 
-  DataFormats* = int16 | int32 | float32
+  DataFormats* = int16 | int32 | float32 | float
 
 
 # dr_wav wrapper
@@ -62,11 +62,20 @@ proc read_wav*[T : DataFormats](file_name : string) : wav_def[T] = # let w = rea
     when T is int16: drwav_open_file_and_read_pcm_frames_s16(file_name, channels.addr, sample_rate.addr, n_frames.addr, nil)
     elif T is int32: drwav_open_file_and_read_pcm_frames_s32(file_name, channels.addr, sample_rate.addr, n_frames.addr, nil)
     elif T is float32: drwav_open_file_and_read_pcm_frames_f32(file_name, channels.addr, sample_rate.addr, n_frames.addr, nil)
+    elif T is float | float64 : drwav_open_file_and_read_pcm_frames_f32(file_name, channels.addr, sample_rate.addr, n_frames.addr, nil)
     else: nil
   
   if pSamples!=nil:
-    samples.setLen n_frames * channels
-    copyMem(samples[0].addr, pSamples, n_frames.int * T.sizeof * channels.int)
+    let n_samples = n_frames.int * channels.int
+    samples.setLen n_samples
+
+    if T is float:
+      var sampf32 = newSeq[float32](n_samples)
+      copyMem(sampf32[0].addr, pSamples, n_samples * float32.sizeof)
+      for i in 0..samples.high: samples[i]=sampf32[i].T
+    else:
+      copyMem(samples[0].addr, pSamples, n_samples * T.sizeof )
+  
     pSamples.drwav_free nil # once copied, release
 
   (channels.int, sample_rate.int, samples)
@@ -77,7 +86,12 @@ proc write_wav* [T : DataFormats](file_name : string, format: WavFormat, samples
   result = drwav_init_file_write(wav.addr, file_name.cstring, format.unsafeAddr, nil) == DRWAV_TRUE
   if result:
     let samples_to_write = samples.len.uint64 div format.channels.uint64
-    result = drwav_write_pcm_frames(wav.addr, samples_to_write, samples[0].unsafeAddr) == samples_to_write
+    if T is float:
+      var sampf32 = newSeq[float32](samples.len)
+      for i in 0..samples.high: sampf32[i]=samples[i].float32
+      result = drwav_write_pcm_frames(wav.addr, samples_to_write, sampf32[0].unsafeAddr) == samples_to_write
+    else:
+      result = drwav_write_pcm_frames(wav.addr, samples_to_write, samples[0].unsafeAddr) == samples_to_write
     drwav_uninit(wav.addr)
 
 proc write_wav* [T : DataFormats](file_name : string, channels, sampleRate : int, samples: seq[T]) : bool =
@@ -85,7 +99,7 @@ proc write_wav* [T : DataFormats](file_name : string, channels, sampleRate : int
     
     when T is int16: format.bitsPerSample = 16  # auto format
     elif T is int32: discard
-    elif T is float32: format.format = DR_WAVE_FORMAT_IEEE_FLOAT
+    elif T is float32 | float: format.format = DR_WAVE_FORMAT_IEEE_FLOAT
 
     write_wav(file_name, format, samples)
 
