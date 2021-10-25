@@ -25,7 +25,7 @@ type
 
   wav_def* [T] = tuple[channels, sample_rate : int, samples : seq[T] ]
 
-  drwav_container = enum 
+  drwav_container* = enum 
     drwav_container_riff,  drwav_container_w64,  drwav_container_rf64
 
   DataFormats* = int16 | int32 | float32 | float
@@ -33,13 +33,17 @@ type
 
 # dr_wav wrapper
 proc drwav_version() : cstring {.header:dw_header, importc:"drwav_version_string".}
+  # DRWAV_API drwav_bool32 drwav_init_file(drwav *pWav, const char *filename, const drwav_allocation_callbacks *pAllocationCallbacks);
+proc drwav_init_file(wav : ptr drwav, file_name : cstring, alloc_cb : pointer = nil) : uint32 {.header:dw_header, importc:"drwav_init_file".}
+
 # readers(f32, s32, s16)
-proc drwav_open_file_and_read_pcm_frames_f32(file_name : cstring, channels, sample_rate:ptr cuint, nframes: ptr uint64, call_back:pointer) : ptr cfloat 
+proc drwav_open_file_and_read_pcm_frames_f32(file_name : cstring, channels, sample_rate:ptr cuint, nframes: ptr uint64, call_back:pointer = nil) : ptr cfloat 
   {.header:dw_header, importc:"drwav_open_file_and_read_pcm_frames_f32".}
-proc drwav_open_file_and_read_pcm_frames_s32(file_name : cstring, channels, sample_rate:ptr cuint, nframes: ptr uint64, call_back:pointer) : ptr int32
+proc drwav_open_file_and_read_pcm_frames_s32(file_name : cstring, channels, sample_rate:ptr cuint, nframes: ptr uint64, call_back:pointer = nil) : ptr int32
   {.header:dw_header, importc:"drwav_open_file_and_read_pcm_frames_s32".}
-proc drwav_open_file_and_read_pcm_frames_s16(file_name : cstring, channels, sample_rate:ptr cuint, nframes: ptr uint64, call_back:pointer) : ptr int16
+proc drwav_open_file_and_read_pcm_frames_s16(file_name : cstring, channels, sample_rate:ptr cuint, nframes: ptr uint64, call_back:pointer = nil) : ptr int16
   {.header:dw_header, importc:"drwav_open_file_and_read_pcm_frames_s16".}
+
 # writers(init, write, uinit)
 proc drwav_init_file_write(wav : ptr drwav, file_name : cstring, format : ptr WavFormat, alloc_cb : pointer) : int32 
   {.header:dw_header, importc:"drwav_init_file_write".}
@@ -51,6 +55,10 @@ proc drwav_free(p:pointer, cbp:pointer) {.header:dw_header, importc:"drwav_free"
 
 #nim wrap
 proc dw_version*() : string = $drwav_version()
+
+proc get_wav*(file_name:string) : dr_wav =
+  discard drwav_init_file(result.addr, file_name)
+
 
 proc read_wav*[T : DataFormats](file_name : string) : wav_def[T] = # let w = read_wav[float32]("test.wav")
   var 
