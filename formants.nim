@@ -1,51 +1,54 @@
 # formants lpc method
 
 import math, complex, algorithm
-import lpc, poly_roots/poly_roots_laguerre, nim_fftw3
-
+import lpc, poly_roots/poly_roots_laguerre, nim_fftw3, sig_wind
 
 type Formant* = object
-  hz, bw, pwr: float # freq, bandwidth, power
+  hz*, bw*, pwr*: float # freq, bandwidth, power
 
-proc cmp_hz(x, y: Formant): int =
+proc cmp_hz*(x, y: Formant): int =
   if x.hz > y.hz: 1
   else:
     if x.hz < y.hz: -1
     else: 0
 
-proc cmp_pwr(x, y: Formant): int =
+proc cmp_pwr*(x, y: Formant): int =
   if x.pwr > y.pwr: 1
   else:
     if x.pwr < y.pwr: -1
     else: 0
 
-proc cmp_bw(x, y: Formant): int =
+proc cmp_bw*(x, y: Formant): int =
   if x.bw > y.bw: 1
   else:
     if x.bw < y.bw: -1
     else: 0
 
-proc cmp_db(x, y: Formant): int =
+proc cmp_db*(x, y: Formant): int =
   - (x.cmp_pwr y)
 
-proc index2freq(i:int, sample_rate:float,  nfft:int) : float =
-   i.float * (sample_rate / nfft.float / 2)
+proc index2freq*(i:int, sample_rate:float,  nfft:int) : float =
+   i.float * (sample_rate / nfft.float)
 
-proc freq2index(freq, sample_rate : float,  nfft:int) : int =
-  freq.int div (sample_rate /  nfft.float / 2).int
+proc freq2index*(freq, sample_rate : float,  nfft:int) : int =
+  freq.int div (sample_rate /  nfft.float).int
 
-proc db(c : Complex) : float = 
-  result = 20.0 * ((1.0 / c).abs + 1e-16).log10 # power in db
+proc db*(c : Complex) : float = 
+  result = 10.0 * (c.abs / 1e-12 ).log10 
   if result.classify == fcNaN or result.classify == fcInf:  result = 0
   
+proc `*`(x,y:seq[float]) : seq[float] =
+  result = newSeq[float](x.len)
+  for i in 0..x.high: result[i]=x[i]*y[i]
 
-proc gen_formants(samples: seq[float], n_coeff: int, sample_rate: float): (seq[Formant], seq[Complex64]) =
+proc formants*(samples: seq[float],  sample_rate: float): (seq[Formant], seq[Complex64]) =
   var
     lpc = newLPC()
     roots: seq[Complex64]
 
-  let
-    coeff = lpc.getCoefficients(n_coeff, samples)
+  let # filter samples w/hamming window
+    n_coeff = (2 + sample_rate / 100).int.power_2 # lpc coeff
+    coeff = lpc.getCoefficients(n_coeff, samples * signal_window(HAMMING, samples.len))
     srpi2 = sample_rate / (PI * 2)
     srpi = sample_rate / PI
 
@@ -64,17 +67,18 @@ proc gen_formants(samples: seq[float], n_coeff: int, sample_rate: float): (seq[F
 
   formants.sort(cmp_hz)
 
+
   # freq. response & calc. power
   var 
-    nfft = sample_rate.int.power_2.shr 2
+    nfft = coeff.len.power_2 # sample_rate.int.power_2.shr 2 # closer power of 2 (log2)
     freqresp : seq[Complex64]
     fft = fft(nfft)
 
   fft.set(coeff)
   fft.exec()
 
-  for i in 0..<nfft: 
-    freqresp.add( complex(fft.cout[i].db, i.index2freq(sample_rate, nfft).float) )
+  for i in 0..<nfft div 2: 
+    freqresp.add( complex(i.index2freq(sample_rate, nfft).float, fft.cout[i].db ) )
 
   for f in formants.mitems:
     f.pwr = fft.cout[f.hz.freq2index(sample_rate, nfft) %% fft.cout.len].db
@@ -106,8 +110,7 @@ when isMainModule:
       n_samples = (sample_rate * 3).int
       samples = gen_wave(amps, freqs, sample_rate, n_samples)
 
-    let (formats, freqresp) = gen_formants(samples = samples, n_coeff = 64,
-        sample_rate = sample_rate)
+    let (formats, freqresp) = formants(samples = samples,  sample_rate = sample_rate)
 
     echo "wave:"
     echo amps
@@ -117,18 +120,20 @@ when isMainModule:
 
   
   proc test_formants_wav_file=
-    let file_name = "test.wav"
+    let 
+      file_name = "test.wav"
+      wav = read_wav[float](file_name)
 
-    let wav = read_wav[float](file_name)
+    echo "formants"
     echo "file       :", file_name
     echo "sample rate:", wav.sample_rate
 
-    var (formats, freqresp) = gen_formants(samples = wav.samples, n_coeff = 64,
-      sample_rate = wav.sample_rate.float)
+    var (formats, freqresp) = formants(samples = wav.samples, sample_rate = wav.sample_rate.float)
     
-    formats = formats.sorted(cmp_hz).deduplicate
+    formats = formats.sorted(cmp_bw).deduplicate
     echo "formants:", formats.len
-    for f in formats[0..4]: echo f
+    for f in formats[0..6].sorted(cmp_hz): echo f
+    # for fr in freqresp:  echo fr.re," ", fr.im
 
   test_formants_wav_file()
   
