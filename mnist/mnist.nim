@@ -1,13 +1,12 @@
 # mnist reader
 
-import streams, endians, zip/zipfiles, sequtils, random
+import streams, endians, sequtils, random
 import mat
 
 {.experimental: "parallel".}
 
 const 
   path="data/"
-  zip_file = "mnist/mnist.zip"
 
   tr_img="train-images-idx3-ubyte"
   tr_lbl="train-labels-idx1-ubyte"
@@ -38,32 +37,8 @@ type
 ## MNISTfile
 
 proc readi32(stm:Stream) : int32 = 
-  assert stm.readData(result.addr, int32.sizeof) == int32.sizeof
+  discard stm.readData(result.addr, int32.sizeof)
   swapEndian32(result.addr, result.addr)
-
-proc mnist_img*(strm:Stream) : MNISTfile =
-  result.stm = strm
-  assert result.stm.isNil == false
-  result.magic = result.stm.readi32
-  assert result.magic == tImage.int32
-  result.n_items = result.stm.readi32
-  result.offset = 4 + 4 + 4 + 4
-  result.cols = result.stm.readi32
-  result.rows = result.stm.readi32
-  assert result.cols!=0  and result.rows!=0
-  result.imgSize = result.cols * result.rows
-  result.imgBuff = newSeq[uint8](result.imgSize)
-  result.ok=true
-
-proc mnist_lbl*(strm:Stream) : MNISTfile =
-  result.stm = strm
-  assert result.stm.isNil == false
-  result.magic = result.stm.readi32
-  assert result.magic == tLabel.int32
-  result.n_items = result.stm.readi32
-  assert result.n_items != 0
-  result.offset = 4 + 4
-  result.ok=true
 
 proc mnist_img*(name:string) : MNISTfile =
   result.stm = newFileStream(name, fmRead)
@@ -103,7 +78,7 @@ proc to_input_seq(m : MNISTfile) : seq[real] =
   assert m.magic == tImage.int32
   result = newSeq[real](m.imgSize)
   for i, b in m.imgBuff.pairs:
-    result[i] = b.real/255 # if b > 127: 1 else: 0
+    result[i] = b.real / 255
 
 proc to_input_seq(m : var MNISTfile, i : int) : seq[real] =
   m.read_image(i)
@@ -121,21 +96,8 @@ proc `=destroy`(m: var MNIST)=
   if not m.te_img.stm.isNil: m.te_img.stm.close
   if not m.te_lbl.stm.isNil: m.te_lbl.stm.close
 
-proc newMNIST_zip* : MNIST =
-  var z : ZipArchive
-  
-  if z.open(zip_file):
-    result.tr_img = mnist_img(z.getStream(tr_img))
-    result.tr_lbl = mnist_lbl(z.getStream(tr_lbl))
-    result.te_img = mnist_img(z.getStream(te_img))
-    result.te_lbl = mnist_lbl(z.getStream(te_lbl))
-  z.close
-  
-proc newMNIST_file* : MNIST =
-  result.tr_img = mnist_img(path & tr_img)
-  result.tr_lbl = mnist_lbl(path & tr_lbl)
-  result.te_img = mnist_img(path & te_img)
-  result.te_lbl = mnist_lbl(path & te_lbl)
+proc newMNIST* : MNIST =
+  MNIST(tr_img : mnist_img(path & tr_img), tr_lbl : mnist_lbl(path & tr_lbl), te_img : mnist_img(path & te_img), te_lbl : mnist_lbl(path & te_lbl))
   
 proc training_images*(m: var MNIST) : vvec =
   for i in 0..<m.tr_img.nItems:  result.add(m.tr_img.to_input_seq(i))

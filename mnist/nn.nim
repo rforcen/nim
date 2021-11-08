@@ -106,7 +106,7 @@ proc save*(nn:NN, file_name : string)= # nim source can be used as training star
 when isMainModule:
 
   proc test_nn* =
-    var mnist = newMNIST_file()
+    var mnist = newMNIST()
 
     echo "loading training data..."
 
@@ -119,7 +119,8 @@ when isMainModule:
     var nn = newNN [784, 30, 10]
 
     echo "mnist training..."
-    echo "done, learn factor:", nn.SGD(training_data, test_data, nepochs=6, eta=0.4), "%"
-    nn.save("mnist/mnist_learnt.nim")
+    echo "done, learn factor:", nn.SGD(training_data, test_data, nepochs=6, eta=0.3), "%"
+    echo "saving to mnist_learnt.nim"
+    nn.save("mnist_learnt.nim")
 
   test_nn()
