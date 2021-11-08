@@ -72,7 +72,8 @@ proc get_byte(m : MNISTfile, item : int) : uint8 =
 proc read_image(m : var MNISTfile, item : int) =
   assert m.magic == tImage.int32
   m.stm.setPosition m.offset + item * m.imgSize
-  assert m.stm.readData(m.imgBuff[0].addr,  m.imgSize) == m.imgSize
+  let br = m.stm.readData(m.imgBuff[0].addr,  m.imgSize)
+  assert br == m.imgSize
 
 proc to_input_seq(m : MNISTfile) : seq[real] =
   assert m.magic == tImage.int32
