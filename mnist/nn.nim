@@ -26,26 +26,19 @@ proc newNN*(sizes:openarray[int]) : NN =
 proc evaluate*(nn:NN, input:vec):vec=
   result = input
 
-  for (b,w) in zip(nn.b, nn.w):
+  for (w,b) in zip(nn.w, nn.b):
     result = w.wab(result, b).sigmoid
 
 # digit 0..9 closer to input image
-proc eval_digit*(nn:NN, input:vec):int=
-  var r = input
-
-  for (b,w) in zip(nn.b, nn.w):
-    r = w.wab(r, b).sigmoid
-  r.maxIndex
+func eval_digit*(nn:NN, input:vec):int =  nn.evaluate(input).maxIndex
 
 proc test_factor*(nn:NN, test_data:Training):real=
-  for (input, output) in zip(test_data[tInput], test_data[tOutput]):
-    let a = nn.evaluate(input)
-    if a.maxIndex == output.find(1.0): 
+  for (image, label) in zip(test_data.images, test_data.labels):
+    if nn.eval_digit(image) == label.find(1.0): 
       result += 1
 
-  result / test_data[tInput].len.real
+  result / test_data.images.len.real
 
- 
 proc cost_derivative(a,b:vec):vec = a - b
 
 proc backpropagation( nn : NN, input_data, test_data : vec) : (vmat, vvec) =
@@ -56,7 +49,7 @@ proc backpropagation( nn : NN, input_data, test_data : vec) : (vmat, vvec) =
   # feed-fwd
   activations.add(input_data)
 
-  for (b,w) in zip(nn.b, nn.w):
+  for (w,b) in zip(nn.w, nn.b):
     var z = w.wab(activation,b) # w*activation+b
 
     zs.add(z)
@@ -83,24 +76,24 @@ proc backpropagation( nn : NN, input_data, test_data : vec) : (vmat, vvec) =
 
 # 1 epoch learning
 proc learn*(nn:var NN, training_data: Training, eta : real) =
-  for (input, output) in zip(training_data[tInput], training_data[tOutput]):
+  for (input, output) in zip(training_data.images, training_data.labels):
 
       let (deltaW, deltaB) = nn.backpropagation(input, output)
 
       nn.w -= deltaW * eta
       nn.b -= deltaB * eta
 
-proc SGD(nn : var NN, training_data, test_data : var Training, nepochs : int = 10, eta : real = 4.0) : real =
+proc SGD(nn : var NN, training_data, test_data : var Training, nepochs : int = 10, eta : real = 0.3) : real =
 
   for epoch in 0..<nepochs:
-    let t = now()
+    let t0 = now()
     write stdout, "epoch ", epoch, ": "; stdout.flushFile
     
-    # training_data.shuffle_training # not really required
+    training_data.shuffle_training 
 
     nn.learn(training_data, eta)
     
-    echo " learn factor:", (100.0 * nn.test_factor(test_data)).floor, "%, lap:",(now()-t).inSeconds,"\""
+    echo " learn factor:", (100.0 * nn.test_factor(test_data)).floor, "%, lap:",(now()-t0).inSeconds,"\""
 
   (nn.test_factor(test_data) * 100).floor
 
@@ -122,13 +115,14 @@ when isMainModule:
       training_data = mnist.training_data()
       test_data = mnist.test_data()
 
-    let 
-      img_sz = training_data[tInput][0].len
+
+    if test_data.images.len==0: 
+      raise Exception.newException("empty test data, end") 
+
+    let # nn topology
+      img_sz = training_data.images[0].len
       n_mid_layers = 30
       n_digits = 10
-
-    if test_data[tInput].len==0: 
-      raise Exception.newException("empty test data, end") 
 
     var nn = newNN [img_sz, n_mid_layers, n_digits]
 
