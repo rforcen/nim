@@ -3,52 +3,51 @@
 import math
 
 type 
-  v3 = array[3, float]
-  v4 = array[4, float]
-  v16x3 = array[16, v3]
-  v16x4 = array[16, v4]
+  vec3 = array[3, float]
+  vec4 = array[4, float]
+  v16x3 = array[16, vec3]
+  v16x4 = array[16, vec4]
 
   HyperCube = object
     rVector : array[6, float]
     threeWarp : float 
     faces : array[23, array[4,int]]
-    cube4Coords: v16x4
     cube4c : v16x4
-    cube3c : array[16, v3]
-    cubePoints, nFaces, nCoords:int 
+    cube3c : array[16, vec3]
+    cubepnts, nFaces, nCoords:int 
 
-# Transform4D 
+# Transform4D  over vec4
 
-proc rotateXY(point:var v4, theta:float) = 
-  point = [point[0] * cos(theta) + point[1] * -sin(theta), point[0] * sin(theta) + point[1] * cos(theta), point[2], point[3]]
+proc rotateXY(pnt:var vec4, theta:float) = 
+  pnt = [pnt[0] * cos(theta) + pnt[1] * -sin(theta), pnt[0] * sin(theta) + pnt[1] * cos(theta), pnt[2], pnt[3]]
 
-proc rotateYZ(point:var v4, theta :float) =
-  point = [ point[0], point[1] * cos(theta) + point[2] * sin(theta), point[1] * -sin(theta) + point[2] * cos(theta), point[3]]
+proc rotateYZ(pnt:var vec4, theta :float) =
+  pnt = [ pnt[0], pnt[1] * cos(theta) + pnt[2] * sin(theta), pnt[1] * -sin(theta) + pnt[2] * cos(theta), pnt[3]]
 
-proc rotateXZ(point : var v4, theta :float) = 
-  point = [ point[0] * cos(theta) + point[2] * -sin(theta), point[1],  point[0] * sin(theta) + point[2] * cos(theta), point[3]]
+proc rotateXZ(pnt : var vec4, theta :float) = 
+  pnt = [ pnt[0] * cos(theta) + pnt[2] * -sin(theta), pnt[1],  pnt[0] * sin(theta) + pnt[2] * cos(theta), pnt[3]]
 
-proc rotateXW(point : var v4, theta :float) =
-  point = [ point[0] * cos(theta) + point[3] * sin(theta), point[1], point[2], point[0] * -sin(theta) + point[3] * cos(theta)]
+proc rotateXW(pnt : var vec4, theta :float) =
+  pnt = [ pnt[0] * cos(theta) + pnt[3] * sin(theta), pnt[1], pnt[2], pnt[0] * -sin(theta) + pnt[3] * cos(theta)]
 
-proc rotateYW(point : var v4, theta :float) =
-  point = [ point[0], point[1] * cos(theta) + point[3] * -sin(theta), point[2], point[1] * sin(theta) + point[3] * cos(theta)]
+proc rotateYW(pnt : var vec4, theta :float) =
+  pnt = [ pnt[0], pnt[1] * cos(theta) + pnt[3] * -sin(theta), pnt[2], pnt[1] * sin(theta) + pnt[3] * cos(theta)]
 
-proc rotateZW(point : var v4, theta :float) =
-  point = [ point[0], point[1], point[2] * cos(theta) +  point[3] * -sin(theta), point[2] * sin(theta) + point[3] * cos(theta)]
+proc rotateZW(pnt : var vec4, theta :float) =
+  pnt = [ pnt[0], pnt[1], pnt[2] * cos(theta) +  pnt[3] * -sin(theta), pnt[2] * sin(theta) + pnt[3] * cos(theta)]
 
-proc project4Dto3D(point : v4) : v3 =
-  [ point[1], point[2], point[3] ]
+proc project4Dto3D(pnt : vec4) : vec3 =
+  [ pnt[1], pnt[2], pnt[3] ]
 
-proc `*`(v:v4, f:float) : v4 = [v[0]*f,v[1]*f,v[2]*f,v[3]*f]
+proc `*`(v:vec4, f:float) : vec4 = [v[0]*f,v[1]*f,v[2]*f,v[3]*f]
 
-proc rotate(point : var v4, ang : array[6, float]) = 
-  rotateXY(point, ang[0])
-  rotateXZ(point, ang[1])
-  rotateXW(point, ang[2])
-  rotateYZ(point, ang[3])
-  rotateYW(point, ang[4])
-  rotateZW(point, ang[5])
+proc rotate(pnt : var vec4, ang : array[6, float]) = 
+  pnt.rotateXY ang[0]
+  pnt.rotateXZ ang[1]
+  pnt.rotateXW ang[2]
+  pnt.rotateYZ ang[3]
+  pnt.rotateYW ang[4]
+  pnt.rotateZW ang[5]
 
 
 proc newHyperCube*() : HyperCube =
@@ -58,7 +57,7 @@ proc newHyperCube*() : HyperCube =
       ], [u, -u, u, -u], [u, -u, -u, u], [u, -u, -u, -u], [-u, u, u, u],
       [-u, u, u, -u], [-u, u, -u, u], [-u, u, -u, -u], [-u, -u, u, u],
       [-u, -u, u, -u], [-u, -u, -u, u], [-u, -u, -u, -u]]
-  HyperCube(threeWarp:1.3, cubePoints:16, nFaces:23, nCoords:23*4, 
+  HyperCube(threeWarp:1.3, cubepnts:16, nFaces:23, nCoords:23*4, 
     faces:[ # 24 faces -> not required [9,1,13,5]?? creates a cross,
       [0, 2, 3, 1], [0, 4, 5, 1], [0, 4, 6, 2], [0, 8, 9, 1], [0, 8, 10, 2],
       [0, 8, 12, 4], [4, 6, 7, 5], [2, 6, 7, 3], [1, 5, 7, 3], [2, 10, 11, 3],
@@ -66,7 +65,7 @@ proc newHyperCube*() : HyperCube =
       [4, 12, 13, 5], [4, 12, 14, 6], [2, 10, 14, 6], [12, 14, 15, 13],
       [10, 14, 15, 11], [9, 13, 15, 11], [6, 14, 15, 7], [5, 13, 15, 7],
       [3, 11, 15, 7]], 
-    cube4Coords:c4c, cube4c:c4c)
+    cube4c:c4c)
 
 proc genCube*(hc:var HyperCube)
 
@@ -78,9 +77,9 @@ proc flatProjection*(hc:HyperCube, fourcoords : var v16x4, threecoords : var v16
   # cube3[012]=cube4[123], just remove coord x from 4d
   for i in 0..<16:
     var
-      point4 = fourcoords[i]
-      warp = hc.threeWarp / (hc.threeWarp + point4[0])
-    threecoords[i] = project4Dto3D(point4 * warp)
+      pnt4 = fourcoords[i]
+      warp = hc.threeWarp / (hc.threeWarp + pnt4[0])
+    threecoords[i] = project4Dto3D(pnt4 * warp)
 
 proc genCube*(hc:var HyperCube) =
   for i in 0..<16:
@@ -98,7 +97,7 @@ when isMainModule:
     zoom {.global.} = -4.0
     hc {.global.}  = newHyperCube()
 
-  converter f2gld(v:v3):ptr GLdouble = cast[ptr GLdouble](v.unsafeAddr)
+  converter f2gld(v:vec3):ptr GLdouble = cast[ptr GLdouble](v.unsafeAddr)
 
   proc draw_scene() {.cdecl.} =
 
