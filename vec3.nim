@@ -30,5 +30,13 @@ proc unormal*(v0, v1, v2: vec3): vec3 = (v2 - v0) ** (v1 - v0)
     
 proc max*(v:vec3):float=max(v[0],max(v[1],v[2]))
 proc amax*(v:vec3):float=max(v[0].abs,max(v[1].abs,v[2].abs))
+
+proc `<`*(a,b:veci3):bool = 
+  if a[0]<b[0]: return true
+  if a[0]>b[0]: return false
+  if a[1]<b[1]: return true
+  if a[1]>b[1]: return false
+  if a[2]<b[2]: return true
+  false
 {.pop.}
   
