@@ -64,14 +64,8 @@ proc getConnectedEdge(e:Edge, index:int):ref Edge=
 
 # edgekey
 proc newEdgeKey(p0, p1 : veci3) : EdgeKey =
-  let (i0, j0, k0, i1, j1, k1) = (p0[0], p0[1], p0[2], p1[0], p1[1], p1[2])
-
-  if i0 < i1 or (i0 == i1 and (j0 < j1 or (j0 == j1 and k0 < k1))): 
-    result.i0 = i0; result.j0 = j0; result.k0 = k0
-    result.i1 = i1; result.j1 = j1; result.k1 = k1
-  else:
-    result.i0 = i1; result.j0 = j1; result.k0 = k1
-    result.i1 = i0; result.j1 = j0; result.k1 = k0
+  if p1<p1: EdgeKey(i0:p0[0], j0:p0[1], k0:p0[2], i1:p1[0], j1:p1[1], k1:p1[2])
+  else:     EdgeKey(i0:p1[0], j0:p1[1], k0:p1[2], i1:p0[0], j1:p0[1], k1:p0[2])
 
 proc hash(ek:EdgeKey):int=
   const 
@@ -79,9 +73,6 @@ proc hash(ek:EdgeKey):int=
     BIT_MASK = (1 shl BIT_SHIFT)-1
 
   (((((ek.i0 and BIT_MASK) shl BIT_SHIFT) or (ek.j0 and BIT_MASK)) shl BIT_SHIFT) or (ek.k0 and BIT_MASK)) + (((((ek.i1 and BIT_MASK) shl BIT_SHIFT) or (ek.j1 and BIT_MASK)) shl BIT_SHIFT) or (ek.k1 and BIT_MASK))
-
-# face
-proc contains(f:Face, edge : Edge) : bool = edge == f.edges[0][] or edge == f.edges[1][] or edge == f.edges[2][] or edge == f.edges[3][]
 
 # facefactory
 proc createFace(faceindex, bitPatternOnCube :int, edges:var seq[ref Edge]):Face =
@@ -103,33 +94,27 @@ proc createFace(faceindex, bitPatternOnCube :int, edges:var seq[ref Edge]):Face 
 
     proc isBitOn(bitPatternOnCube, vertexIndex : int) : bool = (bitPatternOnCube and (1 shl vertexIndex)) != 0
 
-    var bitPatternOnFace = 0
     for vertexIndex in 0..<4:
       if isBitOn(bitPatternOnCube, FACE_VERTICES[faceIndex][vertexIndex]):
-        bitPatternOnFace = bitPatternOnFace or (1 shl vertexIndex)
-    bitPatternOnFace
+        result = result or (1 shl vertexIndex)
 
   let bitPatternOnFace = buildBitPatternOnFace(bitPatternOnCube, faceIndex)
     
-  var
-    face = Face( index:faceindex, 
-        edges: @[
-              edges[FACE_EDGES[faceIndex][0]],
-              edges[FACE_EDGES[faceIndex][1]],
-              edges[FACE_EDGES[faceIndex][2]],
-              edges[FACE_EDGES[faceIndex][3]]],
-        ambiguous : isAmbiguousBitPattern(bitPatternOnFace))
-    connectivity = EDGE_CONNECTIVITY_ON_FACE[bitPatternOnFace]
+  result = Face( index:faceindex, 
+    edges: @[
+          edges[FACE_EDGES[faceIndex][0]],  edges[FACE_EDGES[faceIndex][1]],
+          edges[FACE_EDGES[faceIndex][2]],  edges[FACE_EDGES[faceIndex][3]]],
+    ambiguous : isAmbiguousBitPattern(bitPatternOnFace))
+  var connectivity = EDGE_CONNECTIVITY_ON_FACE[bitPatternOnFace]
 
   for i in 0..<2:
     if connectivity[i].len != 0:
       for vertexIndex in 0..<4:
           if connectivity[i][vertexIndex] != -1: 
             if FACE_ORIENTATION[faceIndex] == CW:
-              face.edges[vertexIndex].setConnectedEdge(i, face.edges[connectivity[i][vertexIndex]])
+              result.edges[vertexIndex].setConnectedEdge(i, result.edges[connectivity[i][vertexIndex]])
             else:
-              face.edges[connectivity[i][vertexIndex]].setConnectedEdge(i, face.edges[vertexIndex])
-  face
+              result.edges[connectivity[i][vertexIndex]].setConnectedEdge(i, result.edges[vertexIndex])
 
 # cube
 proc newCube(index:int):Cube =
@@ -146,7 +131,7 @@ proc getEdgeConnectivity(c:Cube, connectionSwitches : openArray[int]) : seq[int]
         raise newException(IndexDefect, "face in cube is not ambigous")
       for edgeIndex in 0..<4:
         let edge = face.edges[edgeIndex]
-        if edge.getConnectedEdge(0) != nil and face.contains(edge.getConnectedEdge(0)[]):
+        if edge.getConnectedEdge(0) in face.edges:
           result[edge.index] = edge.getConnectedEdge(connectionSwitches[faceIndex]).index
 
 # LookupTable: set of 256 cubes
@@ -172,23 +157,18 @@ proc calcNormal(p : Polygonizer, v : vec3) : vec3 =
    
     f = p.function(x, y, z)
 
-  var n = [ 
+  result = [ 
     -(p.function(x+p.nd[0], y, z) - f) / p.nd[0], 
     -(p.function(x, y+p.nd[1], z) - f) / p.nd[1], 
     -(p.function(x, y, z+p.nd[2]) - f) / p.nd[2]]
 
-  let l = n.hypot
+  let l = result.hypot
     
-  if l > 0.0: n /= l
-  n
+  if l > 0.0: result /= l
 
 ####
 proc polygonize*(p:var Polygonizer)=
   var
-    values : array[8,float]
-    positionsD: array[8, vec3]
-    positionsI : array[8, veci3]
-    connectionSwitches : array[6, int]
     edgeToIndex : array[12, int]
     indexTable : Table[EdgeKey, int] 
     upperPlane = newSeqWith(p.idiv[1]+1, newSeq[float](p.idiv[0]+1))
@@ -219,63 +199,31 @@ proc polygonize*(p:var Polygonizer)=
           x1 = p.min[0] + i.float * p.d[0]
           x2 = p.min[0] + (i + 1).float * p.d[0]
           
-        # Set sampled function values on each corner of the
-        # cube
-        values[0] = lowerPlane[j  ][i ]
-        values[1] = lowerPlane[j+1][i ]
-        values[2] = lowerPlane[j+1][i+1]
-        values[3] = lowerPlane[j  ][i+1]
-        values[4] = upperPlane[j  ][i ]
-        values[5] = upperPlane[j+1][i ]
-        values[6] = upperPlane[j+1][i+1]
-        values[7] = upperPlane[j  ][i+1]
-
-        # echo "values:", values
+        # Set sampled function values on each corner of the cube
+        var values = [  lowerPlane[j][i],lowerPlane[j+1][i],lowerPlane[j+1][i+1],lowerPlane[j][i+1],
+                        upperPlane[j][i],upperPlane[j+1][i],upperPlane[j+1][i+1],upperPlane[j][i+1] ]
 
         # Adjust the function values which are almost same as the
         # isovalue
-        if abs(values[0] - p.isovalue) < eps: values[0] += 10.0 * eps
-        if abs(values[1] - p.isovalue) < eps: values[1] += 10.0 * eps
-        if abs(values[2] - p.isovalue) < eps: values[2] += 10.0 * eps
-        if abs(values[3] - p.isovalue) < eps: values[3] += 10.0 * eps
-        if abs(values[4] - p.isovalue) < eps: values[4] += 10.0 * eps
-        if abs(values[5] - p.isovalue) < eps: values[5] += 10.0 * eps
-        if abs(values[6] - p.isovalue) < eps: values[6] += 10.0 * eps
-        if abs(values[7] - p.isovalue) < eps: values[7] += 10.0 * eps
+        for i in 0..7:
+          if abs(values[i] - p.isovalue) < eps: values[i] += 10.0 * eps
 
         # Calculate index into the lookup table
-        var cubeIndex = 0
-        if values[0] > p.isovalue: cubeIndex += 1
-        if values[1] > p.isovalue: cubeIndex += 2
-        if values[2] > p.isovalue: cubeIndex += 4
-        if values[3] > p.isovalue: cubeIndex += 8
-        if values[4] > p.isovalue: cubeIndex += 16
-        if values[5] > p.isovalue: cubeIndex += 32
-        if values[6] > p.isovalue: cubeIndex += 64
-        if values[7] > p.isovalue: cubeIndex += 128
+        var 
+          cubeIndex = 0
+          p2val=1
+        for i in 0..7:
+          if values[i] > p.isovalue: cubeIndex += p2val
+          p2val = p2val shl 1
 
         # Skip the empty cube
         if cubeIndex == 0 or cubeIndex == 255:
           continue
 
         # Set up corner positions of the cube
-        positionsD[0][0] = x1;  positionsD[0][1] = y1; positionsD[0][2] = z1
-        positionsD[1][0] = x1;  positionsD[1][1] = y2; positionsD[1][2] = z1
-        positionsD[2][0] = x2;  positionsD[2][1] = y2; positionsD[2][2] = z1
-        positionsD[3][0] = x2;  positionsD[3][1] = y1; positionsD[3][2] = z1
-        positionsD[4][0] = x1;  positionsD[4][1] = y1; positionsD[4][2] = z2
-        positionsD[5][0] = x1;  positionsD[5][1] = y2; positionsD[5][2] = z2
-        positionsD[6][0] = x2;  positionsD[6][1] = y2; positionsD[6][2] = z2
-        positionsD[7][0] = x2;  positionsD[7][1] = y1; positionsD[7][2] = z2
-
-        positionsI[0][0] = i  ; positionsI[0][1] = j  ; positionsI[0][2] = k
-        positionsI[1][0] = i  ; positionsI[1][1] = j+1; positionsI[1][2] = k
-        positionsI[2][0] = i+1; positionsI[2][1] = j+1; positionsI[2][2] = k
-        positionsI[3][0] = i+1; positionsI[3][1] = j  ; positionsI[3][2] = k
-        positionsI[4][0] = i  ; positionsI[4][1] = j  ; positionsI[4][2] = k+1
-        positionsI[5][0] = i  ; positionsI[5][1] = j+1; positionsI[5][2] = k+1
-        positionsI[6][0] = i+1; positionsI[6][1] = j+1; positionsI[6][2] = k+1
-        positionsI[7][0] = i+1; positionsI[7][1] = j  ; positionsI[7][2] = k+1
+        var 
+          positionsD : array[8, vec3]  = [[x1, y1, z1],[x1, y2, z1],[x2, y2, z1],[x2, y1, z1],[x1, y1, z2],[x1, y2, z2],[x2, y2, z2],[x2, y1, z2]]
+          positionsI : array[8, veci3] = [[i,j,k],[i,j+1,k],[i+1,j+1,k],[i+1,j,k],[i,j,k+1],[i,j+1,k+1],[i+1,j+1,k+1],[i+1,j,k+1]]
 
         # Find the cube edges which have intersection points with the isosurface
         let cube = lookupTable.cubes[cubeIndex]
@@ -299,17 +247,18 @@ proc polygonize*(p:var Polygonizer)=
             
 
         # Resolve topological ambiguity on cube faces
-        for faceIndex in 0..<6:
-          let face = cube.faces[faceIndex]
-          if face.ambiguous:
-            let
-              d0 = values[face.edges[0].endVertexIndex] - values[face.edges[0].startVertexIndex]
-              d1 = values[face.edges[2].endVertexIndex] - values[face.edges[2].startVertexIndex]
-              t = (p.isovalue - values[face.edges[1].startVertexIndex]) / (values[face.edges[1].endVertexIndex] -
-                    values[face.edges[1].startVertexIndex])
-            connectionSwitches[faceIndex] = if t > -d0 / (d1 - d0):1 else:0
-          else:
-            connectionSwitches[faceIndex] = 0
+        var connectionSwitches = collect(newSeq):
+          for faceIndex in 0..<6:
+            let face = cube.faces[faceIndex]
+            if face.ambiguous:
+              let
+                d0 = values[face.edges[0].endVertexIndex] - values[face.edges[0].startVertexIndex]
+                d1 = values[face.edges[2].endVertexIndex] - values[face.edges[2].startVertexIndex]
+                t = (p.isovalue - values[face.edges[1].startVertexIndex]) / (values[face.edges[1].endVertexIndex] -
+                      values[face.edges[1].startVertexIndex])
+              if t > -d0 / (d1 - d0):1 else:0
+            else:
+              0
     
 
         # Get the connectivity graph of the cube edges and trace
