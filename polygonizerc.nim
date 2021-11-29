@@ -1,43 +1,39 @@
 # poligonizer port from c
 
 import strformat, random, math, streams
+import implicit_funcs
 
-const
-  HASHBIT=5
+const 
+  # L:left direction:	-x, -i, R:right direction:	+x, +i, B: bottom direction: -y, -j
+  # T:top direction:	+y, +j  N:near direction:	-z, -k , F far direction:	+z, +k 
+  (L,R,B,T,N,F) = (0,1,2,3,4,5)
+
+  # left bottom near corner # left bottom far corner  # left top near corner    
+  # left top far corner     # right bottom near corner# right bottom far corner 
+  # right top near corner   # right top far corner
+  (LBN, LBF, LTN, LTF, RBN, RBF, RTN, RTF) = (0,1,2,3,4,5,6,7)
+
+  ##  Cubical Polygonization (optional) 
+  (LB,LT,LN,LF,RB,RT,RN,RF,BN,BF,TN,TF)=(0,1,2,3,4,5,6,7,8,9,10,11)
+
+  HASHBIT=4
   HASHSIZE=(1 shl (3 * HASHBIT)) # hash table size (32768) 
   MASK=((1 shl HASHBIT) - 1)
-
-  L=0   # left direction:	-x, -i 
-  R=1   # right direction:	+x, +i 
-  B=2   # bottom direction: -y, -j
-  T=3   # top direction:	+y, +j 
-  N=4   # near direction:	-z, -k 
-  F=5   # far direction:	+z, +k 
-  LBN=0 # left bottom near corner 
-  LBF=1 # left bottom far corner  
-  LTN=2 # left top near corner    
-  LTF=3 # left top far corner     
-  RBN=4 # right bottom near corner
-  RBF=5 # right bottom far corner 
-  RTN=6 # right top near corner   
-  RTF=7 # right top far corner
 
   TET* =0 # use tetrahedral decomposition
   NOTET* =1 # no tetrahedral decomposition
 
   RES=40
 
-  ##  Cubical Polygonization (optional) 
-  (LB,LT,LN,LF,RB,RT,RN,RF,BN,BF,TN,TF)=(0,1,2,3,4,5,6,7,8,9,10,11)
-
 {.push inline.}
-proc HASH(i, j, k: int): int = ((i and MASK) shl HASHBIT) or ((j and MASK) shl HASHBIT) or (k and MASK) 
-proc BIT(i, bit: int): int = (i shr bit) and 1
-proc FLIP(i, bit: int): int = i xor (1 shl bit)           ##  flip the given bit of i
+proc hash(i, j, k: int): int = ((i and MASK) shl HASHBIT) or ((j and MASK) shl HASHBIT) or (k and MASK) 
+proc bit(i, bit: int): int = (i shr bit) and 1
+proc flip(i, bit: int): int = i xor (1 shl bit)           ##  flip the given bit of i
 proc box[T](x: T): ref T {.inline.} = new(result); result[] = x # obj to ref conversion
 
 proc itob(i:int):bool = cast[bool](i)
 proc btoi(b:bool):int = cast[int](b)
+
 {.pop.}
 
 type 
@@ -124,17 +120,25 @@ var
   rightface = [L, T, N, L, B, R, R, F, B, F, N, T]
 
 # list iterator
+{.push inline.}
 iterator items[T : IntLists|IntList|CenterList|CornerList|EdgeList](pil:ref T):ref T=
   var il=pil
   while il!=nil:
     yield il
     il=il.next
 
+proc `==`(l:CenterList, il:tuple[i,j,k:int]):bool=l.i == il.i and l.j == il.j and l.k == il.k
+proc `==`(l:CornerList, il:tuple[i,j,k:int]):bool=l.i == il.i and l.j == il.j and l.k == il.k
+proc `==`(l:EdgeList, il:tuple[i1,j1,k1,i2,j2,k2,:int]):bool=
+  l.i1 == il.i1 and l.j1 == il.j1 and l.k1 == il.k1 and
+  l.i2 == il.i2 and l.j2 == il.j2 and l.k2 == il.k2
+
+{.pop.}
 ##
 
 proc triangle2(p:var Polygonizer, i1, i2, i3:int, vertices : Vertices) : int
 
-proc newProcess*(function:ImplicitFunc, bounds:int, size:float):Polygonizer=
+proc newPolygonizer*(function:ImplicitFunc, bounds:int, size:float):Polygonizer=
   Polygonizer(function:function, bounds:bounds, size:size, mode:TET, lefthanded:false, triproc:triangle2, delta : size / (RES * RES))
 
 proc triangle2(p:var Polygonizer, i1, i2, i3:int, vertices : Vertices) : int=
@@ -143,33 +147,24 @@ proc triangle2(p:var Polygonizer, i1, i2, i3:int, vertices : Vertices) : int=
 
 # nextcwedge: next clockwise edge from given edge around given face
 proc nextcwedge(edge, face : int) : int =
+  template choose(dir, op1, op2 : int): int =
+    if face == dir: op1 else: op2
+    
   case edge
-  of LB:
-    if face == L: LF else: BN
-  of LT:
-    if face == L: LN else: TF
-  of LN:
-    if face == L: LB else: TN
-  of LF:
-    if face == L: LT else: BF
-  of RB:
-    if face == R: RN else: BF
-  of RT:
-    if face == R: RF else: TN
-  of RN:
-    if face == R: RT else: BN
-  of RF:
-    if face == R: RB else: TF
-  of BN:
-    if face == B: RB else: LN
-  of BF:
-    if face == B: LB else: RF
-  of TN:
-    if face == T: LT else: RN
-  of TF:
-    if face == T: RT else: LF
+  of LB: choose(L, LF, BN)
+  of LT: choose(L, LN, TF)
+  of LN: choose(L, LB, TN)
+  of LF: choose(L, LT, BF)
+  of RB: choose(R, RN, BF)
+  of RT: choose(R, RF, TN)
+  of RN: choose(R, RT, BN)
+  of RF: choose(R, RB, TF)
+  of BN: choose(B, RB, LN)
+  of BF: choose(B, LB, RF)
+  of TN: choose(T, LT, RN)
+  of TF: choose(T, RT, LF)
   else: 0
-
+  
 #  otherface: face adjoining edge that is not the given face
 proc otherface (edge, face : int) : int = 
   result = leftface[edge]
@@ -181,7 +176,8 @@ proc makecubetable(p:var Polygonizer)=
     pos:array[8, int]
 
   for i in 0..<256:
-    for c in 0..<8 :  pos[c] = BIT(i, c)
+
+    for c in 0..<8 :  pos[c] = bit(i, c)
 
     for e in 0..<12:
       if not done[e] and pos[corner1[e]] != pos[corner2[e]]:
@@ -209,13 +205,14 @@ proc makecubetable(p:var Polygonizer)=
         # add ints to head of table entry 
         cubetable[i] = IntLists(list:ints, next:cubetable[i]).box
   
-proc setcenter(table : var openArray[ref CenterList], i, j, k : int) : int =
-  let index = HASH(i, j, k)
 
-  for l in table[index]:
-    if l.i == i and l.j == j and l.k == k:  return 1
+proc setcenter(p:var Polygonizer, i, j, k : int) : int =
+  let index = hash(i, j, k)
 
-  table[index] = CenterList(i:i, j:j, k:k, next:table[index]).box
+  for l in p.centers[index]:
+    if l==(i,j,k): return 1
+
+  p.centers[index] = CenterList(i:i, j:j, k:k, next:p.centers[index]).box
 
   return 0
 
@@ -223,7 +220,7 @@ proc setcenter(table : var openArray[ref CenterList], i, j, k : int) : int =
    set (and cache) its function value ]#
 
 proc setcorner(p:var Polygonizer, i, j, k:int) : ref Corner = 
-  var index = HASH(i, j, k)
+  var index = hash(i, j, k)
 
   result = Corner(i:i, j:j, k:k, point:Point(
       x: p.start.x + (i.float - 0.5) * p.size, 
@@ -231,7 +228,7 @@ proc setcorner(p:var Polygonizer, i, j, k:int) : ref Corner =
       z: p.start.z + (k.float - 0.5) * p.size)).box
   
   for l in p.corners[index]:
-    if l.i == i and l.j == j and l.k == k:
+    if l==(i,j,k):
       result.value = l.value
       return
   
@@ -260,9 +257,7 @@ proc converge(p1, p2 : Point, v:float, function:ImplicitFunc, p:var Point)=
   else:      pos=p1;  neg=p2
 
   for i in 0..RES:
-    p.x = 0.5 * (pos.x + neg.x)
-    p.y = 0.5 * (pos.y + neg.y)
-    p.z = 0.5 * (pos.z + neg.z)
+    p = Point(x: 0.5 * (pos.x + neg.x), y: 0.5 * (pos.y + neg.y), z: 0.5 * (pos.z + neg.z))
 
     if function(p.x, p.y, p.z) > 0.0:  pos=p
     else:  neg=p
@@ -270,9 +265,10 @@ proc converge(p1, p2 : Point, v:float, function:ImplicitFunc, p:var Point)=
 # normal: compute unit length surface normal at point 
 proc normal(p:Polygonizer, point : Point, v:var Point)=
   var f = p.function(point.x, point.y, point.z)
-  v.x = p.function(point.x + p.delta, point.y, point.z) - f
-  v.y = p.function(point.x, point.y + p.delta, point.z) - f
-  v.z = p.function(point.x, point.y, point.z + p.delta) - f
+  v = Point(
+      x: p.function(point.x + p.delta, point.y, point.z) - f,
+      y: p.function(point.x, point.y + p.delta, point.z) - f,
+      z: p.function(point.x, point.y, point.z + p.delta) - f)
   f = sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
   if f != 0.0:
     v.x /= f
@@ -280,19 +276,19 @@ proc normal(p:Polygonizer, point : Point, v:var Point)=
     v.z /= f
 
 # setedge: set vertex id for edge 
-proc setedge(table : var openArray[ref EdgeList], pi1, pj1, pk1, pi2, pj2, pk2, vid: int)=
+proc setedge(p:var Polygonizer, pi1, pj1, pk1, pi2, pj2, pk2, vid: int)=
   var (i1,j1,k1,i2,j2,k2)=(pi1,pj1,pk1,pi2,pj2,pk2)
 
-  if i1 > i2 or (i1 == i2 and (j1 > j2 or (j1 == j2 and k1 > k2))):
+  if (i1,j1,k1) > (i2,j2,k2):
     swap i1,i2
     swap j1,j2
     swap k1,k2
 
-  let index = HASH(i1, j1, k1) + HASH(i2, j2, k2)
-  table[index] = EdgeList(i1:i1, i2:i2, j1:j1, j2:j2, k1:k1, k2:k2, vid:vid, next:table[index]).box
+  let index = hash(i1, j1, k1) + hash(i2, j2, k2)
+  p.edges[index] = EdgeList(i1:i1, i2:i2, j1:j1, j2:j2, k1:k1, k2:k2, vid:vid, next:p.edges[index]).box
 
 # getedge: return vertex id for edge return -1 if not set 
-proc getedge(table: var openArray[ref EdgeList], pi1, pj1, pk1, pi2, pj2, pk2 : int) : int =
+proc getedge(p:var Polygonizer, pi1, pj1, pk1, pi2, pj2, pk2 : int) : int =
   var (i1,j1,k1,i2,j2,k2)=(pi1,pj1,pk1,pi2,pj2,pk2)
 
   if i1 > i2 or (i1 == i2 and (j1 > j2 or (j1 == j2 and k1 > k2))):
@@ -300,9 +296,8 @@ proc getedge(table: var openArray[ref EdgeList], pi1, pj1, pk1, pi2, pj2, pk2 : 
     swap j1,j2
     swap k1,k2
   
-  for q in table[HASH(i1, j1, k1) + HASH(i2, j2, k2)]:
-    if q.i1 == i1 and q.j1 == j1 and q.k1 == k1 and
-       q.i2 == i2 and q.j2 == j2 and q.k2 == k2:
+  for q in p.edges[hash(i1, j1, k1) + hash(i2, j2, k2)]:
+    if q==(i1,j1,k1,i2,j2,k2):
       return q.vid
   return -1
 
@@ -319,14 +314,14 @@ proc vertid(p:var Polygonizer, c1, c2: ref Corner) : int =
     a = c1.point
     b = c2.point
 
-  var vid = getedge(p.edges, c1.i, c1.j, c1.k, c2.i, c2.j, c2.k)
+  var vid = p.getedge(c1.i, c1.j, c1.k, c2.i, c2.j, c2.k)
   if vid != -1:  return vid # previously computed 
 
   converge(a, b, c1.value, p.function, v.position) # position 
   p.normal(v.position, v.normal)                  # normal 
   p.vertices.add v                        # save vertex 
   vid = p.vertices.high
-  setedge(p.edges, c1.i, c1.j, c1.k, c2.i, c2.j, c2.k, vid)
+  p.setedge(c1.i, c1.j, c1.k, c2.i, c2.j, c2.k, vid)
   return vid
 
 # Tetrahedral Polygonization 
@@ -427,14 +422,14 @@ proc testface(p:var Polygonizer, i, j, k:int, old:var Cube, face, c1, c2, c3, c4
      (old.corners[c3].value > 0) == pos and
      (old.corners[c4].value > 0) == pos) or
      (abs(i) > p.bounds or abs(j) > p.bounds or abs(k) > p.bounds) or
-     (setcenter(p.centers, i, j, k)!=0) : return
+     (p.setcenter(i, j, k)!=0) : return
 
   # create new_cube cube: 
   var new_cube=Cube(i:i,j:j,k:k) 
-  for cc in [c1,c2,c3,c4]: new_cube.corners[FLIP(cc, bit)] = old.corners[cc]
+  for cc in [c1,c2,c3,c4]: new_cube.corners[flip(cc, bit)] = old.corners[cc]
   for n in 0..<8:
     if new_cube.corners[n] == nil:
-      new_cube.corners[n] = p.setcorner(i + BIT(n, 2), j + BIT(n, 1), k + BIT(n, 0))
+      new_cube.corners[n] = p.setcorner(i + bit(n, 2), j + bit(n, 1), k + bit(n, 0))
 
   #add cube to top of stack: 
   p.cubes = Cubes(cube:new_cube, next:oldcubes).box
@@ -461,11 +456,11 @@ proc polygonize(p:var Polygonizer, x, y, z:float) : string =
 
   # set corners of initial cube: 
   for n in 0..<8:
-    p.cubes.cube.corners[n] = p.setcorner(BIT(n, 2), BIT(n, 1), BIT(n, 0))
+    p.cubes.cube.corners[n] = p.setcorner(bit(n, 2), bit(n, 1), bit(n, 0))
 
   # no vertices yet
 
-  discard setcenter(p.centers, 0, 0, 0)
+  discard p.setcenter(0, 0, 0)
 
   while p.cubes != nil: # process active cubes till none left 
     var
@@ -527,13 +522,8 @@ end_header
 
 
 when isMainModule:
-  proc sphere(x,y,z:float):float= 
-    let rsq = x*x+y*y+z*z
-    1.0 / (if rsq < 0.00001: 0.00001 else: rsq)
-  proc Blob(x,y,z:float):float= 4 - sphere(x + 0.5, y - 0.5, z - 0.5) - sphere(x - 0.5, y + 0.5, z - 0.5) - sphere(x - 0.5, y - 0.5, z + 0.5)
-  
   echo "polygonizing..."
-  var p = newProcess(Blob, 30, 0.05)
+  var p = newPolygonizer(DecoCube, 60, 0.06)
   echo fmt"polygonize result:{p.polygonize(0, 0, 0)}"
   echo fmt"#vertices:{p.vertices.len} #trigs:{p.triangles.len}"
   p.write_ply("pisc.ply")
