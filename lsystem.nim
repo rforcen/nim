@@ -74,12 +74,12 @@ proc flowsnake=
 
 const 
   Lsystem_samples* = [koch1, koch2, dragon, peano1, flowsnake]
-  names* = ["koch1", "koch2", "dragon", "peano1", "flowsnake"]
+  Lsystem_names* = ["koch1", "koch2", "dragon", "peano1", "flowsnake"]
 
 when isMainModule:
   import sequtils
   echo "generating lsystem samples"
-  for (l,n) in zip(Lsystem_samples, names):  
+  for (l,n) in zip(Lsystem_samples, Lsystem_names):  
     echo n
     l()
   
