@@ -81,7 +81,7 @@ proc generateSIRD*(depthMap : Image, color1, color2, color3 : ColorRGBX, colorIn
     stereogram
     
 # textured stereogram generator
-proc generateTexturedSIRD(depthMap, texturePattern : Image,
+proc generateTexturedSIRD*(depthMap, texturePattern : Image,
   width, height : int,
   observationDistanceInches, eyeSeparationInches,  maxDepthInches, minDepthInches : float,
   horizontalPPI, verticalPPI : int ) : Image =
@@ -146,11 +146,11 @@ proc generateTexturedSIRD(depthMap, texturePattern : Image,
 
 # color defs
 const
-  red = rgbx(255,0,0,255)
-  green = rgbx(0,255,0,255)
-  blue = rgbx(0,0,255,255)
-  black = rgbx(0,0,0,255)
-  white = rgbx(255,255,255,255)
+  red* = rgbx(255,0,0,255)
+  green* = rgbx(0,255,0,255)
+  blue* = rgbx(0,0,255,255)
+  black* = rgbx(0,0,0,255)
+  white* = rgbx(255,255,255,255)
 
 ##
 when isMainModule:
