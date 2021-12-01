@@ -1,4 +1,7 @@
 # color & textured stereograms
+# compile w/
+# nim c -r -d:pixieUseStb -d:release -d:danger stereogram
+
 
 import random, sequtils, pixie
 
@@ -155,7 +158,7 @@ const
 ##
 when isMainModule:
   let 
-    path ="stereogram/"
+    path =""
     width=1024
     height=768
 
