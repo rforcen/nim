@@ -112,9 +112,9 @@ proc createFace(faceindex, bitPatternOnCube :int, edges:var seq[ref Edge]):Face 
       for vertexIndex in 0..<4:
           if connectivity[i][vertexIndex] != -1: 
             if FACE_ORIENTATION[faceIndex] == CW:
-              result.edges[vertexIndex].setConnectedEdge(i, result.edges[connectivity[i][vertexIndex]])
+              result.edges[vertexIndex][].setConnectedEdge(i, result.edges[connectivity[i][vertexIndex]])
             else:
-              result.edges[connectivity[i][vertexIndex]].setConnectedEdge(i, result.edges[vertexIndex])
+              result.edges[connectivity[i][vertexIndex]][].setConnectedEdge(i, result.edges[vertexIndex])
 
 # cube
 proc newCube(index:int):Cube =
@@ -130,7 +130,7 @@ proc getEdgeConnectivity(c:Cube, connectionSwitches : openArray[int]) : seq[int]
       if face.ambiguous == false and connectionSwitches[faceIndex] != 0:
         raise newException(IndexDefect, "face in cube is not ambigous")
       for edgeIndex in 0..<4:
-        let edge = face.edges[edgeIndex]
+        let edge = face.edges[edgeIndex][]
         if edge.getConnectedEdge(0) in face.edges:
           result[edge.index] = edge.getConnectedEdge(connectionSwitches[faceIndex]).index
 
@@ -229,7 +229,7 @@ proc polygonize*(p:var Polygonizer)=
         let cube = lookupTable.cubes[cubeIndex]
 
         for edgeIndex in 0..<12:
-          let edge = cube.edges[edgeIndex]
+          let edge = cube.edges[edgeIndex][]
           if edge.getConnectedEdge(0) != nil:
             let key = newEdgeKey(positionsI[edge.startVertexIndex], positionsI[edge.endVertexIndex])
             if key in indexTable:

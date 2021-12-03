@@ -210,7 +210,7 @@ proc setcenter(p:var Polygonizer, i, j, k : int) : int =
   let index = hash(i, j, k)
 
   for l in p.centers[index]:
-    if l==(i,j,k): return 1
+    if l[]==(i,j,k): return 1
 
   p.centers[index] = CenterList(i:i, j:j, k:k, next:p.centers[index]).box
 
@@ -228,7 +228,7 @@ proc setcorner(p:var Polygonizer, i, j, k:int) : ref Corner =
       z: p.start.z + (k.float - 0.5) * p.size)).box
   
   for l in p.corners[index]:
-    if l==(i,j,k):
+    if l[]==(i,j,k):
       result.value = l.value
       return
   
@@ -296,9 +296,9 @@ proc getedge(p:var Polygonizer, pi1, pj1, pk1, pi2, pj2, pk2 : int) : int =
     swap j1,j2
     swap k1,k2
   
-  for q in p.edges[hash(i1, j1, k1) + hash(i2, j2, k2)]:
-    if q==(i1,j1,k1,i2,j2,k2):
-      return q.vid
+  for e in p.edges[hash(i1, j1, k1) + hash(i2, j2, k2)]:
+    if e[]==(i1,j1,k1,i2,j2,k2):
+      return e.vid
   return -1
 
 
