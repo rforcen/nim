@@ -66,9 +66,9 @@ type
     i, j, k: int
     corners : array[8, ref Corner]
   
-  Cubes = object
+  CubeList = object
     cube : Cube
-    next : ref Cubes
+    next : ref CubeList
 
   CenterList = object
     i, j, k: int
@@ -99,7 +99,7 @@ type
     size, delta : float   # cube size, normal delta 
     bounds : int           # cube range within lattice 
     start : Point          # start point on surface 
-    cubes : ref Cubes         # active cubes 
+    cubes : ref CubeList         # active cubes 
     centers : array[HASHSIZE, ref CenterList] # cube center hash table 
     corners : array[HASHSIZE, ref CornerList] # corner value hash table 
     edges : array[HASHSIZE, ref EdgeList]     # edge and vertex id hash table 
@@ -121,7 +121,7 @@ var
 
 # list iterator
 {.push inline.}
-iterator items[T : IntLists|IntList|CenterList|CornerList|EdgeList](pil:ref T):ref T=
+iterator items[T : IntLists|IntList|CenterList|CornerList|EdgeList|CubeList](pil:ref T):ref T=
   var il=pil
   while il!=nil:
     yield il
@@ -238,15 +238,16 @@ proc setcorner(p:var Polygonizer, i, j, k:int) : ref Corner =
 
 proc find(p:Polygonizer, sign:int, x, y, z:float) : Test =
   var range = p.size
-  result.ok = 1
+  result.ok = 0
   
-  for i in 0..<10000:
+  for _ in 0..<10000:
     result.p = Point(x:x + range * (rand(1.0) - 0.5), y:y + range * (rand(1.0) - 0.5), z:z + range * (rand(1.0) - 0.5))
     result.value = p.function(result.p.x, result.p.y, result.p.z)
-    if sign == (result.value > 0.0).btoi:  return
+    if sign == (result.value > 0.0).btoi:  
+      result.ok = 1
+      break
     range = range * 1.0005 # slowly expand search outwards 
   
-  result.ok = 0
 
 # converge: from two points of differing sign, converge to zero crossing 
 
@@ -381,7 +382,7 @@ proc dotet(p:var Polygonizer, cube : Cube, c1, c2, c3, c4:int):int=
 
 # docube: triangulate the cube directly, without decomposition 
 
-proc docube(p:var Polygonizer, cube : var Cube) : int =
+proc docube(p:var Polygonizer, cube : Cube) : int =
   var index=0
   for i in 0..<8:
     if cube.corners[i].value > 0:
@@ -410,33 +411,30 @@ proc docube(p:var Polygonizer, cube : var Cube) : int =
   if surface crosses face, compute other four corners of adjacent cube
   and add new_cube cube to cube stack ]#
 
-proc testface(p:var Polygonizer, i, j, k:int, old:var Cube, face, c1, c2, c3, c4:int) =
-  let facebit = [2, 2, 1, 1, 0, 0]
-  var
-    oldcubes = p.cubes
-    pos = old.corners[c1].value > 0
-    bit = facebit[face]
+proc testface(p:var Polygonizer, i, j, k:int, old_cube:Cube, face, c1, c2, c3, c4:int) =
+  let 
+    facebit = [2, 2, 1, 1, 0, 0][face]
+    pos = old_cube.corners[c1].value > 0
 
   # test if no surface crossing, cube out of bounds, or already visited: 
-  if ((old.corners[c2].value > 0) == pos and
-     (old.corners[c3].value > 0) == pos and
-     (old.corners[c4].value > 0) == pos) or
+  if ((old_cube.corners[c2].value > 0) == pos and
+     (old_cube.corners[c3].value > 0) == pos and
+     (old_cube.corners[c4].value > 0) == pos) or
      (abs(i) > p.bounds or abs(j) > p.bounds or abs(k) > p.bounds) or
      (p.setcenter(i, j, k)!=0) : return
 
   # create new_cube cube: 
   var new_cube=Cube(i:i,j:j,k:k) 
-  for cc in [c1,c2,c3,c4]: new_cube.corners[flip(cc, bit)] = old.corners[cc]
+  for cc in [c1,c2,c3,c4]: new_cube.corners[flip(cc, facebit)] = old_cube.corners[cc]
   for n in 0..<8:
     if new_cube.corners[n] == nil:
       new_cube.corners[n] = p.setcorner(i + bit(n, 2), j + bit(n, 1), k + bit(n, 0))
 
   #add cube to top of stack: 
-  p.cubes = Cubes(cube:new_cube, next:oldcubes).box
+  p.cubes = CubeList(cube:new_cube, next:p.cubes).box
 
 
-proc polygonize(p:var Polygonizer, x, y, z:float) : string =
-  var noabort : bool
+proc polygonize(p:var Polygonizer, x=0.0, y=0.0, z=0.0) : string =
 
   p.makecubetable()
 
@@ -452,7 +450,7 @@ proc polygonize(p:var Polygonizer, x, y, z:float) : string =
   converge(input.p, output.p, input.value, p.function, p.start)
 
   # push initial cube on stack: 
-  p.cubes = new(Cubes)
+  p.cubes = new(CubeList)
 
   # set corners of initial cube: 
   for n in 0..<8:
@@ -463,28 +461,20 @@ proc polygonize(p:var Polygonizer, x, y, z:float) : string =
   discard p.setcenter(0, 0, 0)
 
   while p.cubes != nil: # process active cubes till none left 
-    var
-      c : Cube
-      temp = p.cubes
+    let c = p.cubes.cube
 
-    c = p.cubes.cube
-
-    noabort = 
-      if p.mode == TET: # either decompose into tetrahedra and polygonize: 
+    if not (if p.mode == TET: # either decompose into tetrahedra and polygonize: 
         ( p.dotet(c, LBN, LTN, RBN, LBF) and
           p.dotet(c, RTN, LTN, LBF, RBN) and
           p.dotet(c, RTN, LTN, LTF, LBF) and
           p.dotet(c, RTN, RBN, LBF, RBF) and
           p.dotet(c, RTN, LBF, LTF, RBF) and
           p.dotet(c, RTN, LTF, RTF, RBF)).itob
-      else:  # or polygonize the cube directly: 
-        p.docube(c).itob
+        else:  # or polygonize the cube directly: 
+          p.docube(c).itob):
+      return "aborted"
 
-    if not noabort: return "aborted"
-
-    # pop current cube from stack 
-    p.cubes = p.cubes.next
-    temp=nil
+    p.cubes = p.cubes.next # next cube
 
     # test six face directions, maybe add to stack: 
     p.testface(c.i - 1, c.j, c.k, c, L, LBN, LBF, LTN, LTF)
@@ -497,7 +487,7 @@ proc polygonize(p:var Polygonizer, x, y, z:float) : string =
   return "ok"
 
 proc write_ply(p:Polygonizer, file_name : string)=
-  var st =newFileStream(file_name, fmWrite)
+  var st = newFileStream(file_name, fmWrite)
   st.write fmt"""ply
 format ascii 1.0
 comment polygonizer generated
@@ -513,17 +503,19 @@ property list uchar int vertex_indices
 end_header
 """
 
-  for v in p.vertices:
-    st.write fmt"{v.position.x} {v.position.y} {v.position.z} {v.normal.x} {v.normal.y} {v.normal.z}", "\n"
-  for t in p.triangles:
-    st.write fmt"3 {t.i1} {t.i2} {t.i3}", "\n"
+  for v in p.vertices:   st.write fmt"{v.position.x} {v.position.y} {v.position.z} {v.normal.x} {v.normal.y} {v.normal.z}", "\n"
+  for t in p.triangles:  st.write fmt"3 {t.i1} {t.i2} {t.i3}", "\n"
 
   st.close
 
-
+##################
 when isMainModule:
+  import times
+
   echo "polygonizing..."
   var p = newPolygonizer(DecoCube, 60, 0.06)
-  echo fmt"polygonize result:{p.polygonize(0, 0, 0)}"
+  var t0 = now()
+  echo fmt"polygonize result:{p.polygonize}, lap:{(now()-t0).inMilliseconds()}ms"
+
   echo fmt"#vertices:{p.vertices.len} #trigs:{p.triangles.len}"
   p.write_ply("pisc.ply")
