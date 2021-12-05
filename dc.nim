@@ -82,7 +82,7 @@ proc write_ppm6*(dc: DomainColoring, fn: string) = # write image to P6 netpbm
     var f = newFileStream(fn, fmWrite)
     if not f.isNil:
       f.write &"P6\n{dc.w} {dc.h} 255\n"
-      for pix in dc.image: f.writeData(pix.unsafeAddr, 3)
+      for pix in dc.image: f.writeData(pix.unsafeAddr, 3) #rgb
       f.close()
 
 # proc write_image*(dc : DomainColoring, fn:string) = # needs pixie...
@@ -91,20 +91,16 @@ proc write_ppm6*(dc: DomainColoring, fn: string) = # write image to P6 netpbm
 #     image.writeFile(fn)
 
 proc newDC(w, h: int, zexpr: string): DomainColoring =
-    var dc = DomainColoring(w: w, h: h, zvm: newZvm(zexpr))
-
-    dc.image = newSeq[uint32](w*h)
+    result = DomainColoring(w: w, h: h, zvm: newZvm(zexpr), image:newSeq[uint32](w*h))
 
     Weave.init() # generate dc image in parallel
 
-    let dc_ptr = dc.addr
+    let dc_ptr = result.addr
     parallelFor index in 0..<w*h:
       captures: {dc_ptr}
       dc_ptr[].set_pixel(index)
     
     Weave.exit()
-
-    dc
 
 when isMainModule:
     import times
