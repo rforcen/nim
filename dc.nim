@@ -2,14 +2,11 @@
 # dc.nim
 
 
-import math, complex, zvm, streams, threadpool, cpuinfo
-import pixie
-import par
+import math, complex, zvm, streams, weave, strformat
 
-type DomainColoring = object
-    w: int
-    h: int
-    image: seq[uint32]
+type DomainColoring* = object
+    w,h: int
+    image*: seq[uint32]
     zvm: Zvm
 
 proc hsv_2_rgb(h: float, s: float, v: float): uint32 =
@@ -40,17 +37,18 @@ proc hsv_2_rgb(h: float, s: float, v: float): uint32 =
     result = cast[uint32]([uint8(b*255.0), uint8(g*255.0), uint8(r*255.0), 0xff'u8])
 
 
-proc gen_pixel(zvm: Zvm, index, w, h: int): uint32 =
+proc set_pixel(dc : var DomainColoring, index: int) =
 
     const PI2 = PI * 2.0
 
-    let limit = PI
-    let (rmi, rma, imi, ima) = (-limit, limit, -limit, limit)
-    let (i, j) = (index %% w, index div w)
-    let im = ima - (ima - imi) * float(j) / float(h - 1)
-    let re = rma - (rma - rmi) * float(i) / float(w - 1)
+    let 
+      limit = PI
+      (rmi, rma, imi, ima) = (-limit, limit, -limit, limit)
+      (i, j) = (index %% dc.w, index div dc.w)
+      im = ima - (ima - imi) * float(j) / float(dc.h - 1)
+      re = rma - (rma - rmi) * float(i) / float(dc.w - 1)
 
-    let v = zvm.eval(complex(re, im))
+      v = dc.zvm.eval(complex(re, im))
 
     var hue = v.phase() # calc hue, arg:phase -pi..pi
     if hue < 0.0: hue += PI2
@@ -71,36 +69,42 @@ proc gen_pixel(zvm: Zvm, index, w, h: int): uint32 =
     let sat: float = 0.4 + (1.0 - pow3(1.0 - kk)) * 0.6
     let val: float = 0.6 + (1.0 - pow3(1.0 - (1.0 - kk))) * 0.4
 
-    result = hsv_2_rgb(hue, sat, val)
+    dc.image[index] = hsv_2_rgb(hue, sat, val)
 
-proc write*(dc: DomainColoring, fn: string) = # write image to binary file
+proc write_ppm*(dc: DomainColoring, fn: string) = # write image netpbm P7 format
     var f = newFileStream(fn, fmWrite)
     if not f.isNil:
-        f.writeData(dc.image[0].unsafeAddr, dc.image.len * sizeof(dc.image[0]))
-        f.close()
+      f.write &"P7\nWIDTH {dc.w}\nHEIGHT {dc.h}\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n"      
+      f.writeData(dc.image[0].unsafeAddr, dc.image.len * sizeof(dc.image[0]))
+      f.close()
 
-proc gen_range(dc: var DomainColoring, chunk: Slice[int]) =
-    for index in chunk:
-        dc.image[index] = gen_pixel(dc.zvm, index, dc.w, dc.h)
+proc write_ppm6*(dc: DomainColoring, fn: string) = # write image to P6 netpbm
+    var f = newFileStream(fn, fmWrite)
+    if not f.isNil:
+      f.write &"P6\n{dc.w} {dc.h} 255\n"
+      for pix in dc.image: f.writeData(pix.unsafeAddr, 3)
+      f.close()
 
-proc write_image*(dc : DomainColoring, fn:string) =
-    let image = newImage(dc.w, dc.h)
-    image.data = cast[seq[ColorRGBX]](dc.image)
-    image.writeFile(fn)
+# proc write_image*(dc : DomainColoring, fn:string) = # needs pixie...
+#     let image = newImage(dc.w, dc.h)
+#     image.data = cast[seq[ColorRGBX]](dc.image)
+#     image.writeFile(fn)
 
 proc newDC(w, h: int, zexpr: string): DomainColoring =
-    result = DomainColoring(w: w, h: h, zvm: newZvm(zexpr))
+    var dc = DomainColoring(w: w, h: h, zvm: newZvm(zexpr))
 
-    result.image = newSeq[uint32](w*h)
-    # for i in 0..w*h: # ST mode
-    #     result.image[i] = gen_pixel(result.zvm, i, w, h)
+    dc.image = newSeq[uint32](w*h)
 
-    let 
-        ncpus = countProcessors()
+    Weave.init() # generate dc image in parallel
 
-    parallel:
-        for chunk in chunk_ranges(result.image.len, ncpus):
-            spawn result.gen_range(chunk)
+    let dc_ptr = dc.addr
+    parallelFor index in 0..<w*h:
+      captures: {dc_ptr}
+      dc_ptr[].set_pixel(index)
+    
+    Weave.exit()
+
+    dc
 
 when isMainModule:
     import times
@@ -109,10 +113,10 @@ when isMainModule:
         w = 1920
         zexpr = "z * sin( c(1,1)/cos(3/z) + tan(1/z+1) )"
 
-    echo "DC: ", zexpr, ",", w*w
+    echo "DC: ", zexpr, ", items:", w*w
 
     let t = now()
     let dc = newDC(w, w, zexpr)
     echo "lap: ", (now()-t).inMilliseconds(), "ms"
 
-    dc.write_image("dc.png")
+    dc.write_ppm6("dc.ppm")
