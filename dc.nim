@@ -98,17 +98,18 @@ proc newDC(w, h: int, zexpr: string): DomainColoring =
   
   Weave.exit()
 
+#################
 when isMainModule:
-    import times
+  import times
 
-    let
-        w = 1920
-        zexpr = "z * sin( c(1,1)/cos(3/z) + tan(1/z+1) )"
+  let
+    w = 1920
+    zexpr = "z * sin( c(1,1)/cos(3/z) + tan(1/z+1) )"
 
-    echo "DC: ", zexpr, ", items:", w*w
+  echo &"DC:{zexpr} items:{w*w}"
 
-    let t = now()
-    let dc = newDC(w, w, zexpr)
-    echo "lap: ", (now()-t).inMilliseconds(), "ms"
+  let t = now()
+  let dc = newDC(w, w, zexpr)
+  echo &"lap:{(now()-t).inMilliseconds()} ms"
 
-    dc.write_ppm6("dc.ppm")
+  dc.write_ppm6("dc.ppm")
