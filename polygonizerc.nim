@@ -1,6 +1,6 @@
 # poligonizer port from c
 
-import strformat, random, math, streams
+import strformat, random, math
 import implicit_funcs
 
 const 
@@ -486,10 +486,11 @@ proc polygonize(p:var Polygonizer, x=0.0, y=0.0, z=0.0) : string =
   
   return "ok"
 
-proc write_ply(p:Polygonizer, file_name : string)=
-  var st = newFileStream(file_name, fmWrite)
-  st.write fmt"""ply
-format ascii 1.0
+proc write_ply(p:Polygonizer, file_name : string)= # in binary format
+  var fh = open(file_name, fmWrite, bufSize=4096)
+
+  fh.write fmt"""ply
+format binary_little_endian 1.0
 comment polygonizer generated
 element vertex {p.vertices.len}
 property float x
@@ -503,10 +504,22 @@ property list uchar int vertex_indices
 end_header
 """
 
-  for v in p.vertices:   st.write fmt"{v.position.x} {v.position.y} {v.position.z} {v.normal.x} {v.normal.y} {v.normal.z}", "\n"
-  for t in p.triangles:  st.write fmt"3 {t.i1} {t.i2} {t.i3}", "\n"
+  # local iterator to traverse a Point in float32 binary format
+  iterator items(p:Point):array[4,uint8]=
+    for f in [p.x, p.y, p.z]: yield cast[array[4,uint8]](f.float32)
 
-  st.close
+  var bf : seq[uint8]
+  for v in p.vertices:
+    for p in v.position: bf.add p   
+    for p in v.normal: bf.add p
+    
+  for t in p.triangles:
+    bf.add 3
+    for i in [t.i1, t.i2, t.i3]: bf.add cast[array[4,uint8]](i)
+  
+  let bw = fh.writeBuffer(bf[0].addr, bf.len)
+  assert bw == bf.len
+  fh.close
 
 ##################
 when isMainModule:
