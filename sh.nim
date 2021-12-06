@@ -5,8 +5,7 @@
 # nim c --threads:on --experimental sh.nim
 #
 
-import math, glm, sugar, streams, threadpool, cpuinfo, times, strformat
-import par
+import math, glm, sugar, streams, weave, times, strformat
 
 # preset codes
 const SH_N_CODES = 647
@@ -156,8 +155,6 @@ const SPHERICAL_HARMONICS_CODES: array[SH_N_CODES, int] = [
     87766554, 88228822, 88646261, 88824442, 88888888, 44444444,
 ]
 
-
-
 type
     Vertex = object
         position, normal, color, texture: Vec3[float64]
@@ -166,7 +163,7 @@ type
         n, size, color_map: int
         code: seq[float64]
         shape: seq[Vertex]
-        faces: seq[seq[int]]
+        faces: seq[array[4, int]]
 
 proc code_2_vec(code: int): seq[float64] =
     var
@@ -507,7 +504,7 @@ proc calc_color(vp: float64, vmin: float64, vmax: float64, cm: int): Vec3[float6
             c = zv
     c
 
-proc gen_vertex(sh: SphericalHarmonics, index: int): Vertex =
+proc set_vertex(sh: var SphericalHarmonics, index: int) =
     const PI2 = PI * 2.0
     let
         dx = 1.0 / float64(sh.n)
@@ -529,52 +526,135 @@ proc gen_vertex(sh: SphericalHarmonics, index: int): Vertex =
         color = calc_color(color_offset, 0.0, PI2, sh.color_map)
         texture = vec3(float64(i) * dx, float64(j) * dx, 0.0)
 
-    Vertex(position: position, normal: normal, color: color,
+    sh.shape[index]=Vertex(position: position, normal: normal, color: color,
             texture: texture)
 
-proc generate_st(sh: var SphericalHarmonics) = # single thread generator
-    sh.shape = collect(newSeq):
-        for index in 0..<sh.size:
-            sh.gen_vertex(index)
-
-proc set_vertex(sh: var SphericalHarmonics, chunk:Slice[int]) =
-   
-    for index in chunk:
-        sh.shape[index] = sh.gen_vertex(index)
 
 proc generate_mt(sh: var SphericalHarmonics) = # multithread generator
-    sh.shape = newSeq[Vertex](sh.size)
+  sh.shape = newSeq[Vertex](sh.size)
 
-    parallel:
-        for chunk in chunk_ranges(sh.size, countProcessors()):
-            spawn sh.set_vertex(chunk)
+  Weave.init()
+
+  let sh_ptr = sh.addr
+  parallelFor index in 0..<sh.size:
+    captures: {sh_ptr}
+    sh_ptr[].set_vertex(index)
+
+  Weave.exit()
+
+proc triangularize(f:array[4,int]):array[2, array[3,int]] =
+  for i,t in [[0,1,2],[0,2,3]].pairs:  
+    result[i]=[ f[t[0]], f[t[1]], f[t[2]] ]
 
 proc generate_faces(sh: var SphericalHarmonics) =
-    let n = sh.n
-    for i in 0..<n - 1:
-        for j in 0..<n - 1:
-            sh.faces.add(@[
-                (i + 1) * n + j,
-                (i + 1) * n + j + 1,
-                i * n + j + 1,
-                i * n + j,
-            ])
-        sh.faces.add(@[(i + 1) * n, (i + 1) * n + n - 1, i * n, i * n + n - 1])
+  let n = sh.n
+  for i in 0..<n - 1:
+    for j in 0..<n - 1:
+      sh.faces.add [(i + 1) * n + j, (i + 1) * n + j + 1,  i * n + j + 1, i * n + j ]
+    sh.faces.add [(i + 1) * n, (i + 1) * n + n - 1, i * n, i * n + n - 1]
 
-    for i in 0..<n - 1:
-        sh.faces.add(@[i, i + 1, n * (n - 1) + i + 1, n * (n - 1) + i])
+  for i in 0..<n - 1:
+    sh.faces.add [i, i + 1, n * (n - 1) + i + 1, n * (n - 1) + i]
 
 proc newSH*(n: int, code: int, color_map: int): SphericalHarmonics =
-    result = SphericalHarmonics(n: n, size: n*n, code: code_2_vec(code %%
-            SPHERICAL_HARMONICS_CODES.len), color_map: color_map)
-    result.generate_mt()
-    result.generate_faces()
+  result = SphericalHarmonics(
+            n: n, size: n*n, 
+            code: code_2_vec(code %% SPHERICAL_HARMONICS_CODES.len), color_map: color_map )
+  result.generate_mt()
+  result.generate_faces()
 
 proc print(sh: SphericalHarmonics) =
+  for v in sh.shape:
+      echo v.position, v.normal, v.color, v.texture
+  for face in sh.faces:
+      echo face
+
+proc write_plyxx(sh : SphericalHarmonics, file_name : string)=
+  var st = newFileStream(file_name, fmWrite)
+  st.write &"""ply
+format ascii 1.0
+comment spherical harmonics {sh.code}
+element vertex {sh.shape.len}
+property float x
+property float y
+property float z
+property float nx
+property float ny
+property float nz
+property uchar red
+property uchar green
+property uchar blue
+element face {sh.faces.len*2}
+property list uchar int vertex_indices
+end_header
+"""
+
+  proc toString(v:Vec3[float64]):string = &"{v.x:.3} {v.y:.3} {v.z:.3}"
+  proc toString8(v:Vec3[float64]):string = &"{(v.x*255).int} {(v.y*255).int} {(v.z*255).int}"
+
+  for v in sh.shape: st.write v.position.toString & " " & v.normal.toString & " " &  v.color.toString8 & "\n"
+  for f in sh.faces: # triangularize faces
+    for t in f.triangularize:  st.write &"3 {t[0]} {t[1]} {t[2]}\n"
+
+  st.close
+
+type  PlyFileType* = enum ftBinary, ftAscii 
+
+proc write_ply(sh : SphericalHarmonics, file_name : string, file_type : PlyFileType = ftBinary)=
+  var fh = open(file_name, fmWrite, bufSize=4096)
+  let ba = if file_type==ftBinary: "binary_little_endian" else: "ascii"
+
+  fh.write &"""ply
+format {ba} 1.0
+comment spherical harmonics {sh.code}
+element vertex {sh.shape.len}
+property float x
+property float y
+property float z
+property float nx
+property float ny
+property float nz
+property uchar red
+property uchar green
+property uchar blue
+element face {sh.faces.len*2}
+property list uchar int vertex_indices
+end_header
+"""
+
+  case file_type:
+
+  of ftBinary: 
+    var bf : seq[uint8]
+
     for v in sh.shape:
-        echo v.position, v.normal, v.color, v.texture
-    for face in sh.faces:
-        echo face
+      for i in 0..2: bf.add cast[array[4,uint8]](v.position[i].float32)
+      for i in 0..2: bf.add cast[array[4,uint8]](v.normal[i].float32)
+      for i in 0..2: bf.add (v.color[i]*255).uint8
+    var bw = fh.writeBuffer(bf[0].addr, bf.len)
+    assert bw == bf.len, "write error"
+    
+
+    bf.setLen 0
+    for f in sh.faces:
+      for t in f.triangularize:
+        bf.add 3
+        for i in t:
+          for b in cast[array[4,uint8]](i): bf.add b
+
+    bw = fh.writeBuffer(bf[0].addr, bf.len)
+    assert bw == bf.len, "write error"
+
+  of ftAscii: # ascii 
+    proc toString(v:Vec3[float64]):string = &"{v.x:.3} {v.y:.3} {v.z:.3} "
+    proc toString8(v:Vec3[float64]):string = &"{(v.x*255).int} {(v.y*255).int} {(v.z*255).int}"
+
+    for v in sh.shape: fh.write v.position.toString & v.normal.toString & v.color.toString8 & "\n"
+    for f in sh.faces: # triangularize faces
+      for t in f.triangularize:  fh.write &"3 {t[0]} {t[1]} {t[2]}\n"
+
+  fh.close
+
 
 proc write_wrl(sh: SphericalHarmonics, name: string) =
     var f = newFileStream(name, fmWrite)
@@ -653,14 +733,14 @@ when isMainModule:
     var t0 = now()
 
     let
-        resolution = 128*4
-        code = 0
+        resolution = 128 * 1
+        code = 176
         color_map = 0
 
     echo fmt("sh {resolution}x{resolution}={resolution*resolution}...")
     var sh = newSH(resolution, code, color_map)
 
-    echo fmt("lap:{(now() - t0).inMilliseconds()}ms, writing .wrl...")
+    echo fmt("lap:{(now() - t0).inMilliseconds()}ms, writing...")
 
-    sh.write_wrl("sh.wrl")
+    sh.write_ply("sh.ply", ftBinary)
 
