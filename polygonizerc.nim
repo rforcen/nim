@@ -513,11 +513,16 @@ end_header
     for p in v.position: bf.add p   
     for p in v.normal: bf.add p
     
+  var bw = fh.writeBuffer(bf[0].addr, bf.len)
+  assert bw == bf.len
+
+  bf.setLen 0
+
   for t in p.triangles:
     bf.add 3
     for i in [t.i1, t.i2, t.i3]: bf.add cast[array[4,uint8]](i)
   
-  let bw = fh.writeBuffer(bf[0].addr, bf.len)
+  bw = fh.writeBuffer(bf[0].addr, bf.len)
   assert bw == bf.len
   fh.close
 
