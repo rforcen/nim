@@ -105,8 +105,8 @@ type
     edges : array[HASHSIZE, ref EdgeList]     # edge and vertex id hash table 
     lefthanded:bool
 
-    vertices : Vertices  # surface vertices 
-    triangles:Triangles  # surface triangles
+    vertices :Vertices  # surface vertices 
+    triangles:Triangles # surface triangles
 
 var 
   cubetable: array[256, ref IntLists]
@@ -528,12 +528,21 @@ end_header
 
 ##################
 when isMainModule:
-  import times
+  import times, ctm/ctm
 
   echo "polygonizing..."
   var p = newPolygonizer(DecoCube, 60, 0.06)
   var t0 = now()
   echo fmt"polygonize result:{p.polygonize}, lap:{(now()-t0).inMilliseconds()}ms"
 
+  var mesh : Mesh # Poligonize -> Mesh
+  for v in p.vertices:
+    mesh.vertices.add ctm.Vertex(
+      position: [v.position.x, v.position.y, v.position.z],
+      normal: [v.normal.x, v.normal.y, v.normal.z])
+  for t in p.triangles:
+    mesh.faces.add [t.i1, t.i2, t.i3]
+  mesh.saveCTM("piscp.ctm")
+
   echo fmt"#vertices:{p.vertices.len} #trigs:{p.triangles.len}"
-  p.write_ply("pisc.ply")
+  # p.write_ply("pisc.ply")
