@@ -528,7 +528,7 @@ end_header
 
 ##################
 when isMainModule:
-  import times, ctm/ctm
+  import times, ctm
 
   echo "polygonizing..."
   var p = newPolygonizer(DecoCube, 60, 0.06)
@@ -542,7 +542,7 @@ when isMainModule:
       normal: [v.normal.x, v.normal.y, v.normal.z])
   for t in p.triangles:
     mesh.faces.add [t.i1, t.i2, t.i3]
-  mesh.saveCTM("piscp.ctm")
+  mesh.saveCTM("pisc.ctm")
 
   echo fmt"#vertices:{p.vertices.len} #trigs:{p.triangles.len}"
   # p.write_ply("pisc.ply")
