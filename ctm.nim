@@ -7,21 +7,13 @@ const
 {.passL:"-l openctm".} 
 
 type 
-  vec3 = array[3, float]
-  Vertex* = object
-    position*, normal*, color*, texture*: vec3
-  Mesh* = object
-    vertices* : seq[Vertex]
-    faces* : seq[array[3,int]]
+  CTMcontext* {.header:ctmh, importc.}= object
+  CTMuint* = uint32
+  CTMfloat* = float32
+  CTMuintarray* = ptr UncheckedArray[CTMuint]
+  CTMfloatarray* = ptr UncheckedArray[CTMfloat]
 
-type 
-  CTMcontext {.header:ctmh, importc.}= object
-  CTMuint = uint32
-  CTMfloat = float32
-  CTMuintarray = ptr UncheckedArray[CTMuint]
-  CTMfloatarray = ptr UncheckedArray[CTMfloat]
-
-  CTMenum = enum
+  CTMenum* = enum
     # Error codes (see ctmGetError())
     CTM_NONE              = 0x0000, #/< No error has occured (everything is OK).
                                     #/  Also used as an error return value for
@@ -114,88 +106,24 @@ proc ctmDefineMesh*(aContext:CTMcontext, aVertices : ptr CTMfloat, aVertexCount:
   aTriangleCount:CTMuint, aNormals:ptr CTMfloat)
 
 proc ctmLoad*(context : CTMcontext, file_name : cstring)
-proc ctmSave*(aContext:CTMcontext , aFileName:cstring)
+proc ctmSave*(aContext:CTMcontext , aFileName : cstring)
 {.pop.}
 
-proc ptos*[T](p:ptr T, n:CTMuint):seq[T]=
-  result=newSeq[T](n.int)
-  copyMem(result[0].addr, p, n.int * T.sizeof)
-
-converter cstv(s:openArray[CTMfloat]):vec3=[s[0].float,s[1].float,s[2].float]
-
-proc loadCTM*(file_name:string) : Mesh =
-  let context = ctmNewContext(CTM_IMPORT)
-
-  ctmLoad(context, file_name)
-  if ctmGetError(context)==CTM_NONE: # Access the mesh data
-    let 
-      vertCount = ctmGetInteger(context, CTM_VERTEX_COUNT).int
-      triCount = ctmGetInteger(context, CTM_TRIANGLE_COUNT).int
-      
-      indices = cast[CTMuintarray](ctmGetIntegerArray(context, CTM_INDICES))
-      vertices = cast[CTMfloatarray](ctmGetFloatArray(context, CTM_VERTICES))
-      normals = cast[CTMfloatarray](ctmGetFloatArray(context, CTM_NORMALS))
-
-    for i in countup(0, vertCount*3-1, 3): 
-      result.vertices.add Vertex(
-        position:[vertices[i].float,vertices[i+1].float,vertices[i+2].float],
-        normal:[normals[i].float, normals[i+1].float, normals[i+2].float])
-
-    for i in countup(0, triCount*3-1, 3): 
-      result.faces.add [indices[i+0].int, indices[i+1].int, indices[i+2].int]
-
-  context.ctmFreeContext
-
-proc saveCTM*(m:Mesh, file_name:string)=
-  let 
-    context = ctmNewContext(CTM_EXPORT)
-    vertCount = m.vertices.len.CTMuint
-    triCount = m.faces.len.CTMuint
-    
-  var 
-    indices = newSeq[CTMuint](3*triCount) 
-    vertices = newSeq[CTMfloat](3*vertCount) 
-    normals = newSeq[CTMfloat](3*vertCount) 
-    
-  # mesh to ctm
-  for i,v in m.vertices.pairs:
-    for j in 0..2:  vertices[i*3+j]=v.position[j].CTMfloat
-    for j in 0..2:  normals[i*3+j]=v.normal[j].CTMfloat
-  for i,f in m.faces.pairs:
-    for j in 0..2: indices[i*3+j]=f[j].CTMuint
-
-  context.ctmCompressionMethod(CTM_METHOD_MG2)
-  ctmDefineMesh(context, cast[ptr CTMfloat](vertices[0].addr), vertCount, cast[ptr CTMuint](indices[0].addr), triCount, cast[ptr CTMfloat](normals[0].addr))
-
-  ctmSave(context,file_name)
-  let errc = ctmGetError(context)
-  if errc!=CTM_NONE:
-    raise newException(IOError, "CTM: error saving file:" & file_name & ", code:" & $errc)
-
-  context.ctmFreeContext
 
 
-proc check*(m:Mesh):bool=
-  result=false
-  for f in m.faces:
-    for i in f:
-      try:
-        let v = m.vertices[i]
-      except IndexDefect:
-        raise newException(IndexDefect, "CTM: bad mesh")
-  result=true
 
 
-when isMainModule:
-  proc test_rw=
-    var mesh = loadCTM("pisc.ctm")
-    echo if mesh.check: "read ok" else: "bad mesh"
-    mesh.saveCTM("piscsaved.ctm")
-    mesh=loadCTM("piscsaved.ctm")
-    echo "#vertices:", mesh.vertices.len, ", #faces:",mesh.faces.len
+####################
+# when isMainModule:
+#   proc test_rw=
+#     var mesh = loadCTM("pisc.ctm")
+#     echo if mesh.check: "read ok" else: "bad mesh"
+#     mesh.saveCTM("piscsaved.ctm")
+#     mesh=loadCTM("piscsaved.ctm")
+#     echo "#vertices:", mesh.shape.len, ", #faces:",mesh.trigs.len
 
-  proc test_cd=
-    for i in countup(0,6-1,3):
-      echo i, i+1, i+2
+#   proc test_cd=
+#     for i in countup(0,6-1,3):
+#       echo i, i+1, i+2
 
-  test_rw()
+#   test_rw()

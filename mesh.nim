@@ -1,12 +1,14 @@
 #[
-   ZM mesh compressed file format
-   "ZM"(compressed shape len'u32)(compressed trigs len'u32)(shape compress)(trigs compress)
+  mesh.nim
+
+  ZM mesh compressed file format
+  "ZM"(compressed shape len'u32)(compressed trigs len'u32)(shape compress)(trigs compress)
+
+  CTM file r/w
+  PLY read
 ]#
 
-import zippy, math, ctm
-
-const 
-  ZM_id = 0x4d5a # "ZM"
+import strformat, zippy, math, ctm
 
 type
   vec3* = array[3, float32]
@@ -56,6 +58,14 @@ proc nbytes*(ms:Mesh):int = ms.shape.nbytes + ms.trigs.nbytes
 converter saddr[T](x:seq[T]):pointer = x[0].unsafeAddr
 converter saddr(x:string):pointer = x[0].unsafeAddr
 
+converter vec3tobin(v:vec3):string=
+  result = newString(v.sizeof)
+  copyMem(result, v.unsafeAddr, v.sizeof)  
+
+converter vec3tobin(v:vec3i):string=
+  result = newString(v.sizeof)
+  copyMem(result, v.unsafeAddr, v.sizeof)
+
 proc tostr[T](x:seq[T]):string= # convert seq[T] -> string
   result = newString(x.nbytes)
   copyMem(result, x, x.nbytes)
@@ -67,7 +77,7 @@ converter fromstr[T](x:string):seq[T]=
 converter toShape(x:string):seq[Vertex] = fromstr[Vertex] x 
 converter toTrigs(x:string):seq[Trig]   = fromstr[Trig] x
 
-proc compress*(m:Mesh) : MeshStr = (m.shape.tostr.compress(BestCompression), m.trigs.tostr.compress(BestCompression))
+proc compress*(m:Mesh) : MeshStr = (m.shape.tostr.compress, m.trigs.tostr.compress)
 proc uncompress*(m:MeshStr) : Mesh =  Mesh( shape: m.shape.uncompress, trigs: m.trigs.uncompress)
 
 proc normalize*(m:var Mesh)=
@@ -83,7 +93,9 @@ proc clear*(m:var Mesh)=
 proc nvertex*(m:Mesh):int = m.shape.len
 proc ntrigs*(m:Mesh):int = m.trigs.len
 
-# zm file r/w
+# ZM file r/w
+const ZM_id = 0x4d5a # "ZM"
+
 proc ZMwrite*(m:Mesh, file_name:string)=
   var fh = open(file_name, fmWrite)
   
@@ -135,8 +147,8 @@ proc CTMwrite*(m:Mesh, file_name:string)=
   for i,v in m.shape.pairs:
     for j in 0..2:  vertices[i*3+j]=v.pos[j].CTMfloat
     for j in 0..2:  normals[i*3+j]=v.norm[j].CTMfloat
-  for i,f in m.trigs.pairs:
-    for j in 0..2: indices[i*3+j]=f[j].CTMuint
+
+  copyMem(indices[0].addr, m.trigs[0].unsafeAddr, m.trigs.nbytes)
 
   context.ctmCompressionMethod(CTM_METHOD_MG2)
   ctmDefineMesh(context, cast[ptr CTMfloat](vertices[0].addr), vertCount, cast[ptr CTMuint](indices[0].addr), triCount, cast[ptr CTMfloat](normals[0].addr))
@@ -171,20 +183,73 @@ proc CTMread*(file_name:string) : Mesh =
 
   context.ctmFreeContext
 
+# PLY
+proc PLYwrite*(m:Mesh, file_name : string)= # in binary format
+  var fh = open(file_name, fmWrite, bufSize=4096)
+
+  fh.write &"""ply
+format binary_little_endian 1.0
+comment polygonizer generated
+element vertex {m.shape.len}
+property float x
+property float y
+property float z
+property float nx
+property float ny
+property float nz
+element face {m.trigs.len}
+property list uchar int vertex_indices
+end_header
+"""
+
+  var bf : string
+
+  for v in m.shape:
+    bf.add v.pos
+    bf.add v.norm
+  var bw = fh.writeBuffer(bf[0].addr, bf.len)
+  assert bw == bf.len
+    
+  bf = ""
+  for t in m.trigs:
+    bf.add '\3'
+    bf.add t  
+
+  bw = fh.writeBuffer(bf[0].addr, bf.len)
+  assert bw == bf.len
+
+  fh.close
+
+# check mesh
 proc check*(m:Mesh):bool=
   result=false
   for f in m.trigs:
     for i in f:
       try:
-        discard m.shape[i].pos
+        discard m.shape[i]
       except IndexDefect:
-        raise newException(IndexDefect, "CTM: bad mesh")
+        raise newException(IndexDefect, "bad mesh, index issue")
   result=true
-
 
 ##################
 when isMainModule:
-  import strformat, os, random
+  import os, random
+
+  proc comp_perf=
+    let m = ZMread("pisc.zm")
+    # 4 x v + 1
+    var tcs=0
+    for i in 0..3:
+      var  s:string
+      for v in m.shape:
+        let p = [v.pos, v.norm, v.color, v.uv][i]
+        s.add p
+      let cs = s.compress
+      echo i, ":", cs.len
+      tcs += cs.len
+    
+    let cts = m.trigs.toStr.compress.len
+    echo &"total size:{m.nbytes}, trigs size:{cts}, shape:{tcs}, total comp:{tcs+cts}"
 
   proc random_mesh(n:int = 10_000) : Mesh =
     proc rand():vec3 = [rand(1.0).float32, rand(1.0), rand(1.0)]
@@ -241,3 +306,4 @@ when isMainModule:
     echo meshc.shape == mesh.shape
 
   zm_test()
+  # comp_perf()

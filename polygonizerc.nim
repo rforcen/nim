@@ -37,14 +37,14 @@ proc btoi(b:bool):int = cast[int](b)
 {.pop.}
 
 type 
-  ImplicitFunc = proc(x,y,z:float):float
+  ImplicitFunc = proc(x,y,z:float32):float32
 
   Point = object
-    x,y,z:float
+    x,y,z:float32
 
   Test = object
     p : Point
-    value : float
+    value : float32
     ok : int
   
   Vertex = object
@@ -60,7 +60,7 @@ type
   Corner = object
     i, j, k : int
     point : Point
-    value :float
+    value :float32
   
   Cube = object
     i, j, k: int
@@ -76,7 +76,7 @@ type
 
   CornerList = object
     i, j, k: int
-    value:float
+    value:float32
     next : ref CornerList
 
   EdgeList = object
@@ -96,7 +96,7 @@ type
     function: ImplicitFunc # implicit surface function 
     mode : int
     triproc: proc(p:var Polygonizer, i1,i2,i3:int, v:Vertices) : int     # triangle output function 
-    size, delta : float   # cube size, normal delta 
+    size, delta : float32   # cube size, normal delta 
     bounds : int           # cube range within lattice 
     start : Point          # start point on surface 
     cubes : ref CubeList         # active cubes 
@@ -138,7 +138,7 @@ proc `==`(l:EdgeList, il:tuple[i1,j1,k1,i2,j2,k2,:int]):bool=
 
 proc triangle2(p:var Polygonizer, i1, i2, i3:int, vertices : Vertices) : int
 
-proc newPolygonizer*(function:ImplicitFunc, bounds:int, size:float):Polygonizer=
+proc newPolygonizer*(function:ImplicitFunc, bounds:int, size:float32):Polygonizer=
   Polygonizer(function:function, bounds:bounds, size:size, mode:TET, lefthanded:false, triproc:triangle2, delta : size / (RES * RES))
 
 proc triangle2(p:var Polygonizer, i1, i2, i3:int, vertices : Vertices) : int=
@@ -223,9 +223,9 @@ proc setcorner(p:var Polygonizer, i, j, k:int) : ref Corner =
   var index = hash(i, j, k)
 
   result = Corner(i:i, j:j, k:k, point:Point(
-      x: p.start.x + (i.float - 0.5) * p.size, 
-      y: p.start.y + (j.float - 0.5) * p.size, 
-      z: p.start.z + (k.float - 0.5) * p.size)).box
+      x: p.start.x + (i.float32 - 0.5) * p.size, 
+      y: p.start.y + (j.float32 - 0.5) * p.size, 
+      z: p.start.z + (k.float32 - 0.5) * p.size)).box
   
   for l in p.corners[index]:
     if l[]==(i,j,k):
@@ -236,7 +236,7 @@ proc setcorner(p:var Polygonizer, i, j, k:int) : ref Corner =
   p.corners[index] = CornerList(i:i, j:j, k:k, value:result.value, next : p.corners[index]).box
 
 
-proc find(p:Polygonizer, sign:int, x, y, z:float) : Test =
+proc find(p:Polygonizer, sign:int, x, y, z:float32) : Test =
   var range = p.size
   result.ok = 0
   
@@ -251,7 +251,7 @@ proc find(p:Polygonizer, sign:int, x, y, z:float) : Test =
 
 # converge: from two points of differing sign, converge to zero crossing 
 
-proc converge(p1, p2 : Point, v:float, function:ImplicitFunc, p:var Point)=
+proc converge(p1, p2 : Point, v:float32, function:ImplicitFunc, p:var Point)=
   var  pos, neg : Point
 
   if v < 0:  pos=p2;  neg=p1
@@ -486,63 +486,26 @@ proc polygonize(p:var Polygonizer, x=0.0, y=0.0, z=0.0) : string =
   
   return "ok"
 
-proc write_ply(p:Polygonizer, file_name : string)= # in binary format
-  var fh = open(file_name, fmWrite, bufSize=4096)
-
-  fh.write fmt"""ply
-format binary_little_endian 1.0
-comment polygonizer generated
-element vertex {p.vertices.len}
-property float x
-property float y
-property float z
-property float nx
-property float ny
-property float nz
-element face {p.triangles.len}
-property list uchar int vertex_indices
-end_header
-"""
-
-  # local iterator to traverse a Point in float32 binary format
-  iterator items(p:Point):array[4,uint8]=
-    for f in [p.x, p.y, p.z]: yield cast[array[4,uint8]](f.float32)
-
-  var bf : seq[uint8]
-  for v in p.vertices:
-    for p in v.position: bf.add p   
-    for p in v.normal: bf.add p
-    
-  var bw = fh.writeBuffer(bf[0].addr, bf.len)
-  assert bw == bf.len
-
-  bf.setLen 0
-
-  for t in p.triangles:
-    bf.add 3
-    for i in [t.i1, t.i2, t.i3]: bf.add cast[array[4,uint8]](i)
-  
-  bw = fh.writeBuffer(bf[0].addr, bf.len)
-  assert bw == bf.len
-  fh.close
-
 ##################
 when isMainModule:
-  import times, ctm
+  import times, mesh
 
   echo "polygonizing..."
   var p = newPolygonizer(DecoCube, 60, 0.06)
   var t0 = now()
   echo fmt"polygonize result:{p.polygonize}, lap:{(now()-t0).inMilliseconds()}ms"
 
-  var mesh : Mesh # Poligonize -> Mesh
+  var aMesh : Mesh # Poligonize -> Mesh
   for v in p.vertices:
-    mesh.vertices.add ctm.Vertex(
-      position: [v.position.x, v.position.y, v.position.z],
-      normal: [v.normal.x, v.normal.y, v.normal.z])
-  for t in p.triangles:
-    mesh.faces.add [t.i1, t.i2, t.i3]
-  mesh.saveCTM("pisc.ctm")
+    aMesh.shape.add mesh.Vertex(
+      pos: [v.position.x, v.position.y, v.position.z],
+      norm: [v.normal.x, v.normal.y, v.normal.z],
+      color: [0.5f, 0.5, 0])
+  for t in p.triangles:  aMesh.trigs.add [t.i1.uint32, t.i2.uint32, t.i3.uint32]
+
+  aMesh.ZMwrite("pisc.zm")
+  aMesh.CTMwrite("pisc.ctm")
+  aMesh.PLYwrite("pisc.ply")
 
   echo fmt"#vertices:{p.vertices.len} #trigs:{p.triangles.len}"
   # p.write_ply("pisc.ply")
