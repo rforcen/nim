@@ -496,16 +496,16 @@ when isMainModule:
   echo fmt"polygonize result:{p.polygonize}, lap:{(now()-t0).inMilliseconds()}ms"
 
   var aMesh : Mesh # Poligonize -> Mesh
-  for v in p.vertices:
+  for i, v in p.vertices.pairs:
     aMesh.shape.add mesh.Vertex(
       pos: [v.position.x, v.position.y, v.position.z],
       norm: [v.normal.x, v.normal.y, v.normal.z],
       color: [0.5f, 0.5, 0])
   for t in p.triangles:  aMesh.trigs.add [t.i1.uint32, t.i2.uint32, t.i3.uint32]
 
-  aMesh.ZMwrite("pisc.zm")
+  # aMesh.ZMwrite("pisc.zm")
   aMesh.CTMwrite("pisc.ctm")
-  aMesh.PLYwrite("pisc.ply")
+  # aMesh.PLYwrite("pisc.ply")
 
   echo fmt"#vertices:{p.vertices.len} #trigs:{p.triangles.len}"
   # p.write_ply("pisc.ply")

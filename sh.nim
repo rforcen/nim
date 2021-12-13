@@ -5,7 +5,7 @@
 # nim c --threads:on --experimental sh.nim
 #
 
-import math, zm, weave, times, strformat
+import math, mesh, weave, times, strformat
 
 # preset codes
 const SH_N_CODES = 647
@@ -112,8 +112,7 @@ proc calc_vertex(code: seq[int], theta: float32, phi: float32): vec3 =
   ]
 
 proc calc_color(vp: float32, vmin: float32, vmax: float32, cm: int): vec3 =
-    let
-        zv = [0f,0,0]
+    let zv = [0f,0,0]
 
     var
         vmid: float32 = 0f
@@ -489,17 +488,16 @@ when isMainModule:
     var t0 = now()
 
     let
-        resolution = 128 * 4
+        resolution = 128 * 2
         code = 45
         color_map = 0
 
     echo &"sh {resolution}x{resolution}={resolution*resolution}..."
     var sh = newSH(resolution, code, color_map)
 
-    # echo sh.mesh.shape[0..1]
-    # echo sh.mesh.trigs[0..1]
     echo "mesh: #vertices ", sh.mesh.shape.len, ", #trigs ", sh.mesh.trigs.len
     echo fmt("lap:{(now() - t0).inMilliseconds()}ms, writing...")
 
-    sh.mesh.ZMwrite("sh.zm")
+    sh.mesh.CTMwrite("sh.ctm")
+    # sh.mesh.PLYwrite("sh.ply")
 
