@@ -32,28 +32,33 @@ type
     c0s : seq[Complex32]
 
 proc do_scale(m: Mandelbrot, i, j: float32): Complex32 {.inline.} =  m .cr + complex32( m.scx * i,  m.scy * j)
+
 proc size*(m:Mandelbrot):int32 = m.w * m.h
 
+proc recalc_c0(mandel:var Mandelbrot, center, range: Complex32)=
+  let scale = 0.8f * mandel.w.float32 / mandel.h.float32
+
+  Weave.init() # generate c0's
+
+  let m = mandel.addr # use a ptr in parallelFor
+
+  mandel.c0s = newSeq[Complex32](mandel.size)
+
+  parallelFor index in 0..<mandel.size:
+    captures: {m, center, scale}
+    let (i, j) = ( (index mod m[].w).float32, index / m[].w)    
+    m[].c0s[index] = scale * m[].do_scale(i, j) - center
+
+  Weave.exit()
+
 proc newMandelbrot*(w, h, iters: int32, center, range: Complex32): Mandelbrot =
-  let scale = 0.8f * w.float32 / h.float32
 
   result = Mandelbrot(w: w, h: h, iters: iters, center: center, range: range, 
     scx: (range.im-range.re) / w.float32, scy: (range.im-range.re) / h.float32,
     cr : complex32(range.re, range.re),
     image: newSeq[uint32](w*h))
 
-  Weave.init() # generate c0's
-
-  let m = result.addr # use a ptr in parallelFor
-
-  result.c0s = newSeq[Complex32](result.size)
-
-  parallelFor index in 0..<result.size:
-    captures: {m, w, center, scale}
-    let (i, j) = ( (index mod w).float32, index / w)    
-    m[].c0s[index] = scale * m[].do_scale(i, j) - center
-
-  Weave.exit()
+  result.recalc_c0(center, range)
   
 
 proc gen_pixel*(m: var Mandelbrot, index : int) =
