@@ -1,4 +1,5 @@
-# sudoku
+# sudoku random generator & solver
+
 import sequtils, random, math, strutils, locks
 import weave
 
@@ -22,7 +23,7 @@ type
 proc newArray2d[T](n:int):seq[seq[T]]= newSeqWith(n,newSeq[T](n))
 proc newArray3d[T](n:int):seq[seq[seq[T]]]= newSeqWith(n,newSeqWith(n,newSeq[T](0)))
 proc gen_lookup(s:var Sudoku)
-proc `[]`(b:Board, c:Coord):int = b[c[0]][c[1]]
+proc `[]`(b:Board, c:Coord):int {.inline.} = b[c[0]][c[1]]
 
 proc newSoduku*(sz_box:int):Sudoku=
   if sz_box > MaxN: raise newException(Exception, "max box size is 8")
