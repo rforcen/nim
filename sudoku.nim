@@ -41,6 +41,11 @@ proc newSoduku*(sz_box:int):Sudoku=
 # aux funcs  
 proc bit(v,n:int):int {.inline.}= v and (1 shl n)
 proc setbit(v:var int, n:int) {.inline.}= v = v or (1 shl n)
+iterator items(i,n:int):int= # iterate over 'n' bits in int, when 0 -> index
+  for x in 0..<n:
+    if bit(i, x)==0: 
+      yield x
+
 proc bin2seq(v,n:int):seq[int]=
   for i in 0..<n:
     if bit(v,i)==0: result.add i+1
@@ -88,6 +93,18 @@ proc gen_moves(s:Sudoku, row, col : int) : int = # n = sz_box^2, max sz_box=8
     let v = s.board[l] # range 1..n
     if v != EmptyCell: setbit(result, v-1) # 0's are posible moves
 
+iterator allmoves(s:Sudoku, row, col : int) : int = # n = sz_box^2, max sz_box=8
+  var r = 0
+  for l in s.lookup_upper_cells[row][col]:
+    let v = s.board[l] # range 1..n
+    if v != EmptyCell: setbit(r, v-1) # 0's are posible moves
+
+  for i in 0..<s.n:
+    if bit(r, i)==0: 
+      yield i
+
+  
+
 proc gen_moves(s: Sudoku, coord : Coord) : int =          
   s.gen_moves(coord[0], coord[1])
 
@@ -115,8 +132,9 @@ proc find_first_empty(s:Sudoku) : Coord =
   
   Invalid_Coord
 
-proc save_solution*(s:Sudoku) =
-  if s.is_valid: s.print
+proc save_solution*(s:var Sudoku) =
+  s.found_solutions.inc
+  s.copy2solv
 
 proc move(s:var Sudoku, row, col, val : int) {.inline.} = s.board[row][col] = val 
 proc move(s:var Sudoku, coord:Coord, val : int) = s.board[coord[0]][coord[1]] = val 
@@ -125,30 +143,24 @@ proc scan(s:var Sudoku, row, col :int) = # GC safe
   if s.found_solutions < s.max_solutions:
     if s.board[row][col] == EmptyCell:   # skip non empty cells (solve process)
 
-      let moves = s.gen_moves(row, col)
-      
-      for i in 0..<s.n:
+      for i in s.allmoves(row, col):
 
-        if bit(moves, i)==0: # 0's -> move
-          s.move(row, col, i+1)
+        s.move(row, col, i+1)
 
-          if col < s.n-1:    s.scan(row, col + 1) 
+        if col < s.n-1:    s.scan(row, col + 1) 
+        else: 
+          if row < s.n-1:  s.scan(row + 1, 0) 
           else: 
-            if row < s.n-1:  s.scan(row + 1, 0) 
-            else: 
-              s.found_solutions.inc
-              s.copy2solv
-              break
+            s.save_solution
+            break
 
-          s.move(row, col, EmptyCell)  # b(r,c)=0   
+        s.move(row, col, EmptyCell)  # b(r,c)=0   
       
     else:   # next cell
       if col < s.n-1:  s.scan(row, col + 1) 
       else: 
         if row < s.n-1: s.scan(row + 1, 0) 
-        else:           
-          s.found_solutions.inc
-          s.copy2solv
+        else: s.save_solution
       
 proc is_valid(s:Sudoku) : bool =
     
@@ -198,7 +210,10 @@ proc is_valid(s:Sudoku) : bool =
 
     valid     
     
-proc init_board*(s:var Sudoku) = s.board = newArray2d[Chip](s.n)
+proc init_board*(s:var Sudoku) = 
+  s.board = newArray2d[Chip](s.n)
+  s.max_solutions=1
+
 
 proc scan*(s:var Sudoku) = s.scan(0,0)
 proc scan*(s:var Sudoku, coord:Coord) = s.scan(coord[0],coord[1])
@@ -216,7 +231,6 @@ proc gen_problem(s:var Sudoku, level : Level) = # generate a random solvable pro
     szb = s.sz_box
 
   # generate first
-  s.max_solutions=1
   s.init_board
   s.scan(s.find_first_empty)
   
@@ -258,7 +272,7 @@ proc solve_mt*(s:var Sudoku) =
   if coord!=Invalid_Coord:
     let moves = s.gen_moves(coord)
     var 
-      ss = newSeqWith(s.n, s)
+      ss = newSeqWith(s.n, s) # n set of sudoku's
       l : Lock
       found : bool = false
     let 
@@ -338,5 +352,5 @@ when isMainModule:
     echo sdk.lookup_upper_cells[0][0]
 
   # test01()
-  main()
   # test_mt()
+  main()
