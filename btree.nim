@@ -56,11 +56,6 @@ proc `<`(a, b:KeyFieldType):bool{.inline.} = cmp(a,b)<0
 proc `>`(a, b:KeyFieldType):bool{.inline.}= cmp(a,b)>0
 
 
-proc passert(c:bool)=
-  if not c:
-    echo "error"
-    quit(1)
-
 proc error(msg:string)=
   echo msg
   quit(1)
@@ -95,7 +90,7 @@ proc checkSubtree(bt:BTree, current:int, last: var KeyFieldType)=
   if current == NilPtr: return
 
   bt.dataFile.setPosition current * bt.nodeSize
-  passert bt.dataFile.readData(node.unsafeAddr, bt.nodeSize) == bt.nodeSize
+  doAssert bt.dataFile.readData(node.unsafeAddr, bt.nodeSize) == bt.nodeSize
 
   for k in 0..<node.count:
     bt.checkSubtree(node.branch[k], last)
@@ -198,7 +193,7 @@ proc split(bt: var BTree, currentItem:ItemType, currentRight, currentRoot, locat
   else:   median = MinKeys + 1
 
   bt.dataFile.setPosition currentRoot * bt.nodeSize
-  passert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize) == bt.nodeSize
+  doAssert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize) == bt.nodeSize
 
   for j in median ..< MaxKeys: # move half of the items to the RightNode
     rightNode.key[j - median] = bt.currentNode.key[j]
@@ -236,7 +231,7 @@ proc pushDown(bt:var BTree,  currentItem:ItemType, currentRoot:int,
   else:  # recursive case
   
     bt.dataFile.setPosition currentRoot * bt.nodeSize
-    passert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize)==bt.nodeSize
+    doAssert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize)==bt.nodeSize
 
 
     if bt.searchNode(currentItem.key, location):
@@ -246,7 +241,7 @@ proc pushDown(bt:var BTree,  currentItem:ItemType, currentRoot:int,
 
     if moveUp:
       bt.dataFile.setPosition currentRoot * bt.nodeSize
-      passert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize) == bt.nodeSize
+      doAssert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize) == bt.nodeSize
 
 
       if bt.currentNode.count < MaxKeys:
@@ -288,7 +283,7 @@ proc find*(bt:var BTree,  searchKey:KeyFieldType, item:var ItemType) : bool =
 
   while currentRoot != NilPtr and not found: 
     bt.dataFile.setPosition currentRoot * bt.nodeSize
-    passert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize) == bt.nodeSize
+    doAssert bt.dataFile.readData(bt.currentNode.unsafeAddr, bt.nodeSize) == bt.nodeSize
 
     if bt.searchNode(searchKey, location):
       found = true
@@ -336,8 +331,8 @@ when isMainModule:
         ok=false
         break
       else:
-        passert item.key == toKey($rl[i])
-        passert item.data == toData("data" & $rl[i])
+        doAssert item.key == toKey($rl[i])
+        doAssert item.data == toData("data" & $rl[i])
       if i %% (n div 10) == 0: 
         write stdout, i, "\r";   stdout.flushFile
   
@@ -363,8 +358,8 @@ when isMainModule:
         ok=false
         break
       else:
-        passert item.key == toKey($i)
-        passert item.data == toData("data" & $i)
+        doAssert item.key == toKey($i)
+        doAssert item.data == toData("data" & $i)
       if i %% (n div 10) == 0: 
         write stdout, i, "\r";   stdout.flushFile
   
@@ -387,8 +382,8 @@ when isMainModule:
         ok=false
         break
       else:
-        passert item.key == toKey($i)
-        passert item.data == toData("data" & $i)
+        doAssert item.key == toKey($i)
+        doAssert item.data == toData("data" & $i)
       if i %% (n div 10) == 0: 
         write stdout, i, "\r";   stdout.flushFile
   
@@ -418,8 +413,8 @@ when isMainModule:
         ok=false
         break
       else:
-        passert item.key == key
-        passert item.data == toData("data" & r)
+        doAssert item.key == key
+        doAssert item.data == toData("data" & r)
       if i %% (n div 10) == 0: 
         write stdout, "\r", i;   stdout.flushFile
   
@@ -428,19 +423,19 @@ when isMainModule:
     echo if ok: "ok" else: "retrieve fail"
 
   proc test_key_cmp=
-    passert 10.toKey < 11.toKey
-    passert 12.toKey > 10.toKey
-    passert 10.toKey >= 10.toKey
-    passert 8.toKey <= 68.toKey
-    passert 10.toKey == 10.toKey
-    passert 10.toKey != 11.toKey
+    doAssert 10.toKey < 11.toKey
+    doAssert 12.toKey > 10.toKey
+    doAssert 10.toKey >= 10.toKey
+    doAssert 8.toKey <= 68.toKey
+    doAssert 10.toKey == 10.toKey
+    doAssert 10.toKey != 11.toKey
     
-    passert "10".toKey < "11".toKey
-    passert "7".toKey > "10".toKey
-    passert "10".toKey >= "10".toKey
-    passert "6".toKey <= "68".toKey
-    passert "10".toKey == "10".toKey
-    passert "10".toKey != "11".toKey
+    doAssert "10".toKey < "11".toKey
+    doAssert "7".toKey > "10".toKey
+    doAssert "10".toKey >= "10".toKey
+    doAssert "6".toKey <= "68".toKey
+    doAssert "10".toKey == "10".toKey
+    doAssert "10".toKey != "11".toKey
     echo "key cmp ok!"
   
   randomize()
