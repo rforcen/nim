@@ -24,7 +24,7 @@ vector<double> WatermanPoly::genPoly(double radius)
     a = b = c = 0; // center
 
     s = radius;
-    radius2 = radius * radius;
+    radius2 = radius; // * radius;
     xra = ceil(a - s);
     xrb = floor(a + s);
 

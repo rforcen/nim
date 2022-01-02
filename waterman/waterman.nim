@@ -1,7 +1,7 @@
 # waterman poly / convex hull
 # gl display
 # compile w/
-# nim cpp -d:release -d:danger --passL:libconvexhull.a --passC:-std=c++11 waterman.nim && ./waterman
+# nim cpp -d:release -d:danger waterman.nim && ./waterman
 
 import waterman_poly
 import opengl/glut, opengl, opengl/glu, strformat, random
@@ -92,10 +92,10 @@ when isMainModule:
             case key.char:
             of 'q', '\e': quit()
             of ' ' : # random waterman
-              radius = rand(800.0) + 4.0
+              radius = rand(8000.0) + 4.0
               gen_wat()
               glNewList(CompiledScene, GL_COMPILE) # list 1 is scene
-              glutSetWindowTitle(fmt("Waterman {radius.int}, faces:{faces.len}, vertices:{vertices.len}"))
+              glutSetWindowTitle (&("Waterman {radius.int}, faces:{faces.len}, vertices:{vertices.len}")).cstring
               draw_scene()
               glEndList()
 
@@ -123,7 +123,7 @@ when isMainModule:
         glutInitDisplayMode(GLUT_DOUBLE)
         glutInitWindowSize(1200, 1200)
         glutInitWindowPosition(500, 500)
-        discard glutCreateWindow(fmt("Waterman {radius.int} faces:{faces.len}, vertices:{vertices.len}"))
+        discard glutCreateWindow((&("Waterman {radius.int} faces:{faces.len}, vertices:{vertices.len}")).cstring)
 
 
         glutDisplayFunc(display)
@@ -136,7 +136,7 @@ when isMainModule:
         loadExtensions()
 
         randomize()        
-        radius = rand(800.0)+4.0
+        radius = 45#rand(800.0)+4.0
         gen_wat()
 
         glNewList(CompiledScene, GL_COMPILE) # list 1 is scene

@@ -1,13 +1,16 @@
-# waterman poly
+# waterman poly, cpp wrapper
 
 import math, sugar
 
 # ffi 
-proc convex_hull(n_vertices: csize_t, vertices: ptr cdouble,
-        n_faces: ptr csize_t, nh_vertices: ptr csize_t, o_faces: ptr ptr cint,
-        o_vertices: ptr ptr cdouble) {.importc, header: "convexhull.h".}
-proc free_ch(o_faces: ptr cint, o_vertices: ptr cdouble) {.importc,
-        header: "convexhull.h".}
+{.passL:"-L. -lconvexhull".}
+{.push importc, header: "convexhull.h".}
+proc convex_hull(
+  n_vertices: csize_t, vertices: ptr cdouble, 
+  n_faces: ptr csize_t, nh_vertices: ptr csize_t, 
+  o_faces: ptr ptr cint, o_vertices: ptr ptr cdouble) {.importc, header: "convexhull.h".}
+proc free_ch(o_faces: ptr cint, o_vertices: ptr cdouble) 
+{.pop.}
 
 # loop / until
 template loop*(body: untyped) =
@@ -16,14 +19,6 @@ template loop*(body: untyped) =
 
 template until*(cond: typed) =
   if cond: break
-
-# c_int def 
-when sizeof(cint)==8: 
-  type c_int = int64
-when sizeof(cint)==4: 
-  type c_int = int32
-when sizeof(cint)==2:
-  type c_int = int16
 
 type
     Vertex* = array[3, float]
@@ -108,7 +103,6 @@ proc waterman_poly*(radius: float) : seq[float] =
 
 
 proc waterman*(rad: float): (Faces, Vertexes) =
-  const max_items = 0xfffffff
 
   let wp = waterman_poly(rad)
 
@@ -120,17 +114,22 @@ proc waterman*(rad: float): (Faces, Vertexes) =
 
   # echo "waterman n.vertex:", wp.len #, " vertices:", wp
 
-  convex_hull(wp.len.csize_t, cast[ptr cdouble](wp[0].unsafeAddr),
-          n_faces.unsafeAddr, n_vertices.unsafeAddr, o_faces.unsafeAddr,
-          o_vertices.unsafeAddr)
+  convex_hull(
+    wp.len.csize_t, cast[ptr cdouble](wp[0].unsafeAddr),  
+    n_faces.unsafeAddr, n_vertices.unsafeAddr, 
+    o_faces.unsafeAddr, o_vertices.unsafeAddr)
 
   # echo "n.faces:", n_faces, " n_vertex:", n_vertices
 
-  let # slice faces, vertices
-    vertices = cast[ptr array[max_items, Vertex]](o_vertices)[0..<n_vertices]
-    face_list = cast[ptr array[max_items, c_int]](o_faces)[0..<n_faces]
+  # index  uncheckedarray by slice
+  proc `[]`[T](pi:UncheckedArray[T], sl : HSlice[int,int]):seq[T]=
+    for i in sl: result.add pi[i]
 
-  free_ch(o_faces, o_vertices)
+  let # slice faces, vertices
+    vertices = cast[ptr UncheckedArray[Vertex]](o_vertices)[0..<n_vertices.int]
+    face_list = cast[ptr UncheckedArray[cint]](o_faces)[0..<n_faces.int]
+    
+  free_ch(o_faces, o_vertices) # no longer required
 
   # echo face_list
   # echo vertices
@@ -140,7 +139,7 @@ proc waterman*(rad: float): (Faces, Vertexes) =
     faces: Faces
     (i, n) = (0, face_list[0])
 
-  proc fl2face(fl:seq[c_int]):Face=
+  proc fl2face(fl:seq[cint]):Face=
     collect(newSeq):
       for f in fl: f.int
 
