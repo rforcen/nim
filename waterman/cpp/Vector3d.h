@@ -7,8 +7,7 @@
  * @author John E. Lloyd, Fall 2004
  */
 
-#ifndef _Header_Vector3d_h
-#define _Header_Vector3d_h
+#pragma once
 
 #include <stdio.h>
 #include <math.h>
@@ -19,35 +18,32 @@ using std::string;
 class Vector3d
 {
 public:
-    // Precision of a double.
-    constexpr static const double DOUBLE_PREC = 2.2204460492503131e-16;
-    double x=0, y=0, z=0;
-    
-public:
-    
-    Vector3d ();
-    Vector3d (Vector3d *v);
-    Vector3d (double x, double y, double z);
-    double get (int i);
-    void set (int i, double value);
-    void set (Vector3d *v1);
-    void add (Vector3d *v1, Vector3d *v2);
-    void add (Vector3d *v1);
-    void sub (Vector3d *v1, Vector3d *v2);
-    void sub (Vector3d *v1);
-    void scale (double s);
-    void scale (double s, Vector3d *v1);
-    double norm();
-    double normSquared();
-    double distance(Vector3d *v);
-    double distanceSquared(Vector3d *v);
-    double dot (Vector3d *v1);
-    void normalize();
-    void setZero();
-    void set (double x, double y, double z);
-    void cross (Vector3d *v1, Vector3d *v2);
-    void setRandom (double lower, double upper);
-    string toString();
-};
+  // Precision of a double.
+  constexpr static const double DOUBLE_PREC = 2.2204460492503131e-16;
+  double x = 0, y = 0, z = 0;
 
-#endif
+public:
+  Vector3d();
+  Vector3d(Vector3d *v);
+  Vector3d(double x, double y, double z);
+  double get(int i);
+  void set(int i, double value);
+  void set(Vector3d *v1);
+  void add(Vector3d *v1, Vector3d *v2);
+  void add(Vector3d *v1);
+  void sub(Vector3d *v1, Vector3d *v2);
+  void sub(Vector3d *v1);
+  void scale(double s);
+  void scale(double s, Vector3d *v1);
+  double norm();
+  double normSquared();
+  double distance(Vector3d *v);
+  double distanceSquared(Vector3d *v);
+  double dot(Vector3d *v1);
+  void normalize();
+  void setZero();
+  void set(double x, double y, double z);
+  void cross(Vector3d *v1, Vector3d *v2);
+  void setRandom(double lower, double upper);
+  string toString();
+};

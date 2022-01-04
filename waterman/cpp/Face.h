@@ -9,8 +9,7 @@
  *
  * @author John E. Lloyd, Fall 2004 */
 
-#ifndef _Header_Face_h
-#define _Header_Face_h
+#pragma once
 
 #include <stdlib.h>
 #include <vector>
@@ -82,4 +81,3 @@ public:
     double areaSquared (HalfEdge *hedge0, HalfEdge *hedge1);
     void triangulate (FaceList *newFaces, double minArea);
 };
-#endif

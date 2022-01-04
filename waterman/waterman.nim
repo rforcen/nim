@@ -27,8 +27,6 @@ when isMainModule:
         proc gen_colors():Vertexes {.cdecl.}
         proc gen_wat() {.cdecl.}
 
-        
-
         proc gen_wat() {.cdecl.}=
           (faces, vertices) = waterman(radius)
           colors = gen_colors()
@@ -136,7 +134,7 @@ when isMainModule:
         loadExtensions()
 
         randomize()        
-        radius = 45#rand(800.0)+4.0
+        radius = rand(800.0)+4.0
         gen_wat()
 
         glNewList(CompiledScene, GL_COMPILE) # list 1 is scene

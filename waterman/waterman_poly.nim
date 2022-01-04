@@ -1,29 +1,14 @@
 # waterman poly, cpp wrapper
 
-import math, sugar
+import math, cppstl
 
 # ffi 
-{.passL:"-L. -lconvexhull".}
-{.push importc, header: "convexhull.h".}
-proc convex_hull(
-  n_vertices: csize_t, vertices: ptr cdouble, 
-  n_faces: ptr csize_t, nh_vertices: ptr csize_t, 
-  o_faces: ptr ptr cint, o_vertices: ptr ptr cdouble) {.importc, header: "convexhull.h".}
-proc free_ch(o_faces: ptr cint, o_vertices: ptr cdouble) 
-{.pop.}
-
-# loop / until
-template loop*(body: untyped) =
-  while true:
-    body
-
-template until*(cond: typed) =
-  if cond: break
+{.passL:"-Lwaterman -lconvexhull".}
 
 type
     Vertex* = array[3, float]
     Vertexes* = seq[Vertex]
-    Face* = seq[int]
+    Face* = seq[cint]
     Faces* = seq[Face]
 
 proc waterman_poly*(radius: float) : seq[float] =
@@ -101,67 +86,30 @@ proc waterman_poly*(radius: float) : seq[float] =
     
     coords
 
+# QuickHull3D wrapper
+{.push importcpp, header:"cpp/QuickHull3D.h".}
+
+type QuickHull3D {.importcpp.}=object
+
+proc convexhull(qh:QuickHull3D, coords:CppVector[cdouble])
+proc getScaledVertex(qh:QuickHull3D) : CppVector[cdouble]
+proc getFaces(qh:QuickHull3D) : CppVector[CppVector[cint]]
+{.pop.}
 
 proc waterman*(rad: float): (Faces, Vertexes) =
+  var qh : QuickHull3D
 
-  let wp = waterman_poly(rad)
+  qh.convexhull(waterman_poly(rad).toCppVector)
 
-  var
-    n_faces: csize_t = 0
-    n_vertices: csize_t = 0
-    o_faces: ptr cint = nil
-    o_vertices: ptr cdouble = nil
+  let vertexes = cast[Vertexes](qh.getScaledVertex().toSeq)
+  var faces: Faces
+  for face in qh.getFaces():  faces.add face.toSeq
 
-  # echo "waterman n.vertex:", wp.len #, " vertices:", wp
-
-  convex_hull(
-    wp.len.csize_t, cast[ptr cdouble](wp[0].unsafeAddr),  
-    n_faces.unsafeAddr, n_vertices.unsafeAddr, 
-    o_faces.unsafeAddr, o_vertices.unsafeAddr)
-
-  # echo "n.faces:", n_faces, " n_vertex:", n_vertices
-
-  # index  uncheckedarray by slice
-  proc `[]`[T](pi:UncheckedArray[T], sl : HSlice[int,int]):seq[T]=
-    for i in sl: result.add pi[i]
-
-  let # slice faces, vertices
-    vertices = cast[ptr UncheckedArray[Vertex]](o_vertices)[0..<n_vertices.int]
-    face_list = cast[ptr UncheckedArray[cint]](o_faces)[0..<n_faces.int]
-    
-  free_ch(o_faces, o_vertices) # no longer required
-
-  # echo face_list
-  # echo vertices
-
-  # convert face_list to Faces
-  var
-    faces: Faces
-    (i, n) = (0, face_list[0])
-
-  proc fl2face(fl:seq[cint]):Face=
-    collect(newSeq):
-      for f in fl: f.int
-
-  loop:
-    faces.add( fl2face(face_list[i+1..i+n]) )
-    i+=n+1
-    n = face_list[i]
-    until n+i >= face_list.high
-  faces.add( fl2face(face_list[i+1..i+n]) )
-
-  # echo face_list[^15..^1], faces[^3..^1]
-
-  # check
-  for face in faces:
-    for ix in face:
-      for v in vertices[ix]:
-        discard v  
-
-  (faces, vertices)
+  (faces, vertexes)
 
 
 when isMainModule:
-  for i in 10..500:
+  for i in 109..500:
     let (f, v) = waterman(i.float)
     echo i," faces/vertex:", f.len, "/", v.len
+

@@ -2,18 +2,14 @@
  * A three-element spatial point.
  */
 
-
-#ifndef _Header_Point3d_h
-#define _Header_Point3d_h
+#pragma once
 
 #include "Vector3d.h"
 
-class Point3d: public Vector3d
+class Point3d : public Vector3d
 {
 public:
-    Point3d ();
-    Point3d (Vector3d *v);
-    Point3d (double x, double y, double z);
+  Point3d();
+  Point3d(Vector3d *v);
+  Point3d(double x, double y, double z);
 };
-
-#endif
