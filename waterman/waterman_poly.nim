@@ -3,7 +3,7 @@
 import math, cppstl
 
 # ffi 
-{.passL:"-Lwaterman -lconvexhull".}
+{.passL:"-L. -lconvexhull".}
 
 type
     Vertex* = array[3, float]
