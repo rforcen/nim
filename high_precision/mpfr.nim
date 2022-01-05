@@ -8,7 +8,6 @@
 
 import math
 
-
 {.passL: "-lmpfr -lgmp".} # libs required
 
 const mpfr_header* = "<mpfr.h>"
@@ -41,7 +40,16 @@ type
   mpfr_exp_t = clong
   mp_limb_t = culong
 
-  mpfr* = object # {.header : mpfr_header, importc: "__mpfr_struct".} =  object
+#[
+  /* Definition of the main structure */
+  typedef struct {
+    mpfr_prec_t  _mpfr_prec;
+    mpfr_sign_t  _mpfr_sign;
+    mpfr_exp_t   _mpfr_exp;
+    mp_limb_t   *_mpfr_d;
+  } __mpfr_struct;
+]#
+  mpfr* = object # {.importc: "__mpfr_struct", header : mpfr_header.} =  object
     mpfr_prec: mpfr_prec_t
     mpfr_sign: mpfr_sign_t
     mpfr_exp: mpfr_exp_t
@@ -53,83 +61,88 @@ type
 
 # https://www.mpfr.org/mpfr-current/mpfr.html#MPFR-Basics
 
+{.push importc.}
+
 # init
-proc mpfr_init2(x: mpfr, prec: mpfr_prec_t) {.importc.}
-proc mpfr_clear(x: mpfr) {.importc.}
-proc mpfr_free_cache*() {.importc.}
-proc mpfr_set_prec(x: mpfr_t, prec: mpfr_prec_t) {.importc.}
+proc mpfr_init2(x: mpfr, prec: mpfr_prec_t) 
+proc mpfr_clear(x: mpfr) 
+proc mpfr_free_cache*() 
+proc mpfr_set_prec(x: mpfr_t, prec: mpfr_prec_t) 
 
 # exp
-proc mpfr_get_emin: mpfr_exp_t {.importc.}
-proc mpfr_get_emax: mpfr_exp_t {.importc.}
+proc mpfr_get_emin: mpfr_exp_t 
+proc mpfr_get_emax: mpfr_exp_t 
 
 # assignment
-proc mpfr_set(rop: mpfr_t, op: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_set_zero(x: mpfr, sign: cint = 0) {.importc.}
-proc mpfr_swap(x, y: mpfr_t) {.importc.}
-proc mpfr_set_ui (rop: mpfr_t, op: culong, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_set_d(rop: mpfr_t, op: cdouble, rnd: mpfr_rnd_t): cint {.importc.}
+proc mpfr_set(rop: mpfr_t, op: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_set_zero(x: mpfr, sign: cint = 0) 
+proc mpfr_swap(x, y: mpfr_t) 
+proc mpfr_set_ui (rop: mpfr_t, op: culong, rnd: mpfr_rnd_t): cint 
+proc mpfr_set_d(rop: mpfr_t, op: cdouble, rnd: mpfr_rnd_t): cint 
 proc mpfr_set_str (rop: mpfr_t, s: cstring, base: cint,
-    rnd: mpfr_rnd_t): cint {.importc.}
+    rnd: mpfr_rnd_t): cint 
 
 # conversion
-proc mpfr_get_flt(rop: mpfr_t, rnd: mpfr_rnd_t): cfloat {.importc.}
-proc mpfr_get_d(rop: mpfr_t, rnd: mpfr_rnd_t): cdouble {.importc.}
+proc mpfr_get_flt(rop: mpfr_t, rnd: mpfr_rnd_t): cfloat 
+proc mpfr_get_d(rop: mpfr_t, rnd: mpfr_rnd_t): cdouble 
 proc mpfr_get_str (str: cstring, expptr: ptr mpfr_exp_t, base: cint, n: csize_t,
-    op: mpfr_t, rnd: mpfr_rnd_t): cstring {.importc.}
+    op: mpfr_t, rnd: mpfr_rnd_t): cstring 
 
 # arithmetics
-proc mpfr_add (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_sub (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_neg (rop, op1: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_mul (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_div (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_add_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_sub_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_mul_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_div_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint {.importc.}
+proc mpfr_add (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_sub (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_neg (rop, op1: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_mul (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_div (rop, op1, op2: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_add_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint 
+proc mpfr_sub_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint 
+proc mpfr_mul_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint 
+proc mpfr_div_d (rop, op1: mpfr_t, op2: cdouble, rnd: mpfr_rnd_t): cint 
 
-proc mpfr_signbit (rop: mpfr_t): cint {.importc.}
+proc mpfr_signbit (rop: mpfr_t): cint 
 
 # comparision
-proc mpfr_cmp(op1, op2: mpfr_t): cint {.importc.}
-proc mpfr_cmp_d(op1: mpfr_t, op2: cdouble): cint {.importc.}
+proc mpfr_cmp(op1, op2: mpfr_t): cint 
+proc mpfr_cmp_d(op1: mpfr_t, op2: cdouble): cint 
 
 # funcs
-proc mpfr_sqrt (rop, op: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_rootn_ui (rop, op: mpfr_t, n: culong, rnd: mpfr_rnd_t): cint {.importc.} # x ^ y
-proc mpfr_fac_ui (rop: mpfr_t, op: culong, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_atan2 (rop, y, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_pow (rop, x, y: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_sin (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_cos (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_sinh (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_cosh (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_tan (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_log (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_exp (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
+proc mpfr_sqrt (rop, op: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_rootn_ui (rop, op: mpfr_t, n: culong, rnd: mpfr_rnd_t): cint  # x ^ y
+proc mpfr_fac_ui (rop: mpfr_t, op: culong, rnd: mpfr_rnd_t): cint 
+proc mpfr_atan2 (rop, y, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_pow (rop, x, y: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_sin (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_cos (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_sinh (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_cosh (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_tan (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_log (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_exp (rop, x: mpfr_t, rnd: mpfr_rnd_t): cint 
 
 # constants
-proc mpfr_const_log2(rop: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_const_euler(rop: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_const_catalan(rop: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
-proc mpfr_const_pi(rop: mpfr_t, rnd: mpfr_rnd_t): cint {.importc.}
+proc mpfr_const_log2(rop: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_const_euler(rop: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_const_catalan(rop: mpfr_t, rnd: mpfr_rnd_t): cint 
+proc mpfr_const_pi(rop: mpfr_t, rnd: mpfr_rnd_t): cint 
 
 # custom interface
-proc mpfr_custom_get_size (prec: mpfr_prec_t): csize_t {.importc.}
-proc mpfr_custom_init (significand: pointer, prec: mpfr_prec_t) {.importc.}
+proc mpfr_custom_get_size (prec: mpfr_prec_t): csize_t 
+proc mpfr_custom_init (significand: pointer, prec: mpfr_prec_t) 
 proc mpfr_custom_init_set (x: mpfr_t, kind: mpfr_kind_t, exp: mpfr_exp_t,
-    prec: mpfr_prec_t, significand: pointer) {.importc.}
-proc mpfr_custom_get_kind (x: mpfr_t): cint {.importc.}
-proc mpfr_custom_get_significand (x: mpfr_t): pointer {.importc.}
-proc mpfr_custom_get_exp (x: mpfr_t): mpfr_exp_t {.importc.}
-proc mpfr_custom_move (x: mpfr_t, new_position: pointer) {.importc.}
+    prec: mpfr_prec_t, significand: pointer) 
+proc mpfr_custom_get_kind (x: mpfr_t): cint 
+proc mpfr_custom_get_significand (x: mpfr_t): pointer 
+proc mpfr_custom_get_exp (x: mpfr_t): mpfr_exp_t 
+proc mpfr_custom_move (x: mpfr_t, new_position: pointer) 
+
+{.pop.}
 
 #[
   nim wrapper
 ]#
 
 proc set_precision*(prec_in_bits: int) = mpfr_precision = prec_in_bits
+proc get_precision* : int = mpfr_precision
 proc set_digits*(n: int) = mpfr_digits = n
 
 proc init_val(x: mpfr_t, v: float) =
@@ -178,7 +191,7 @@ converter stom*(s: string): mpfr = result = newMpfr(); discard mpfr_set_str(
 converter mtof*(x: mpfr): float = mpfr_get_d(x, mpfr_rand).float
 converter mtof32*(x: mpfr): float32 = mpfr_get_flt(x, mpfr_rand).float32
 
-proc `$`(x: mpfr): string =
+proc `$`*(x: mpfr): string =
   if x.is_init():
     var
       str: array[1024, char]
@@ -192,17 +205,17 @@ proc `$`(x: mpfr): string =
   else:
     result = "**not init**"
 
-proc dump(x: mpfr) =
+proc dump*(x: mpfr) =
   echo "prec:", x.mpfr_prec, ", sign:", x.mpfr_sign, ", exp:", x.mpfr_exp,
       ", limb:", x.mpfr_d
 
 # custom
-proc cinit(x: var mpfr) =
+proc cinit*(x: var mpfr) =
   let p = alloc0(mpfr_custom_get_size(mpfr_precision))
   mpfr_custom_init(p, mpfr_precision)
   mpfr_custom_init_set(x, MPFR_ZERO_KIND, 0, mpfr_precision, p)
 
-proc cfree(x: var mpfr) =
+proc cfree*(x: var mpfr) =
   x.reset # so it's not destroyed
   dealloc(mpfr_custom_get_significand(x))
 
@@ -298,7 +311,7 @@ proc pi*(): mpfr = result = newMpfr(); discard mpfr_const_pi(result, mpfr_rand)
 
 ## complex
 type cmpfr* = object # complex mpfr
-  re, im: mpfr
+  re*, im*: mpfr
 
 proc newCmpfr*(): cmpfr = cmpfr(re: newMpfr(), im: newMpfr())
 proc newCmpfr*(re, im: mpfr): cmpfr = result = cmpfr(re: re, im: im)
@@ -310,6 +323,7 @@ proc dump*(z: cmpfr) =
 
 proc arg*(z: cmpfr): mpfr = atan2(z.im, z.re)
 proc sqmag*(z: cmpfr): mpfr = z.re*z.re + z.im*z.im
+proc abs2*(z: cmpfr): mpfr = z.sqmag
 proc abs*(z: cmpfr): mpfr = z.sqmag.sqrt
 
 proc `+`*(x, y: cmpfr): cmpfr = cmpfr(re: x.re + y.re, im: x.im + y.im)
@@ -441,6 +455,7 @@ when isMainModule:
       if i %% 100 == 0: echo i, ":", x1
 
   import times, complex, sugar
+
   proc test_cmpfr =
 
     var
@@ -525,37 +540,37 @@ when isMainModule:
 
     echo "end"
 
-import strutils
-proc test_custom =
+  import strutils
+  proc test_custom =
 
-  echo "need ", mpfr_custom_get_size(mpfr_precision), " bytes, for a ",
-      mpfr_precision, " bit precision"
-  var x, y, z: mpfr
+    echo "need ", mpfr_custom_get_size(mpfr_precision), " bytes, for a ",
+        mpfr_precision, " bit precision"
+    var x, y, z: mpfr
 
-  echo "before init, x is init:", x.is_init
+    echo "before init, x is init:", x.is_init
 
-  cinit(x)
-  cinit(y)
+    cinit(x)
+    cinit(y)
 
-  echo "after cust init x is init:", x.is_init
-  x := pi()*200.0 # set not =copy
-  y := 678.89
+    echo "after cust init x is init:", x.is_init
+    x := pi()*200.0 # set not =copy
+    y := 678.89
 
-  x+=y
-  z = x # z is not custom so it can be assigned
+    x+=y
+    z = x # z is not custom so it can be assigned
 
-  echo "z=", z, ", z==x:", z == x
-  echo "x=", x, ", y=", y, ", kind=", mpfr_custom_get_kind(x), ", pointer=",
-      cast[uint](mpfr_custom_get_significand(x)).toHex
+    echo "z=", z, ", z==x:", z == x
+    echo "x=", x, ", y=", y, ", kind=", mpfr_custom_get_kind(x), ", pointer=",
+        cast[uint](mpfr_custom_get_significand(x)).toHex
 
-  cfree(x)
-  cfree(y)
+    cfree(x)
+    cfree(y)
 
-echo "-------------------- mpfr test"
-test_custom()
-test_mpfr()
-test_mpfr_init()
-test_cmpfr()
-test_cmpfr_init()
+  echo "-------------------- mpfr test"
+  test_custom()
+  test_mpfr()
+  test_mpfr_init()
+  test_cmpfr()
+  test_cmpfr_init()
 
-echo "-------------------- ok"
+  echo "-------------------- ok"
