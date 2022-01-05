@@ -199,7 +199,6 @@ public:
   void setHull(vector<double> coords, int nump,
                vector<vector<int>> &faceIndices, int numf);
 
-  void convexhull(vector<double> coords);
   void build(vector<double> coords);
   void build(vector<double> coords, int nump);
   void build(vector<Point3d *> points);

@@ -16,6 +16,7 @@
 #include "HalfEdge.h"
 
 #include <assert.h>
+#include <algorithm>
 
 // init all pointers
 void QuickHull3D::initPrt()
@@ -248,12 +249,6 @@ void QuickHull3D::setHull(vector<double> coords, int nump,
  */
 void QuickHull3D::build(vector<double> coords)
 {
-  build(coords, (int)coords.size() / 3);
-}
-
-void QuickHull3D::convexhull(vector<double> coords)
-{
-  initPrt();
   build(coords, (int)coords.size() / 3);
 }
 
@@ -633,14 +628,11 @@ vector<Point3d *> QuickHull3D::getVertices()
 vector<double> QuickHull3D::getScaledVertex()
 {
   auto v = getVertex();
-  double maxv = v[0];
-  for (auto p : v)
-    maxv = std::max(maxv, p);
-  if (maxv != 0.0)
-  {
-    for (auto &p : v)
-      p /= maxv;
-  }
+  double maxv = *std::max_element(v.begin(), v.end());
+
+  for (auto &p : v)
+    p /= maxv;
+
   return v;
 }
 vector<double> QuickHull3D::getVertex()

@@ -87,19 +87,18 @@ proc waterman_poly*(radius: float) : seq[float] =
     coords
 
 # QuickHull3D wrapper
-{.push importcpp, header:"cpp/QuickHull3D.h".}
 
-type QuickHull3D {.importcpp.}=object
+const qhHeader="cpp/QuickHull3D.h"
 
-proc convexhull(qh:QuickHull3D, coords:CppVector[cdouble])
+type QuickHull3D {.importcpp, header:qhHeader.}=object
+{.push importcpp, header:qhHeader.}
 proc getScaledVertex(qh:QuickHull3D) : CppVector[cdouble]
 proc getFaces(qh:QuickHull3D) : CppVector[CppVector[cint]]
 {.pop.}
+proc newQuickHull3D(coords:CppVector[cdouble]) : QuickHull3D {.importcpp:"QuickHull3D(@)", header:qhHeader.}
 
 proc waterman*(rad: float): (Faces, Vertexes) =
-  var qh : QuickHull3D
-
-  qh.convexhull(waterman_poly(rad).toCppVector)
+  var qh = newQuickHull3D(waterman_poly(rad).toCppVector)
 
   let vertexes = cast[Vertexes](qh.getScaledVertex().toSeq)
   var faces: Faces
@@ -109,7 +108,7 @@ proc waterman*(rad: float): (Faces, Vertexes) =
 
 
 when isMainModule:
-  for i in 109..500:
+  for i in countdown(1500, 500, 20):
     let (f, v) = waterman(i.float)
     echo i," faces/vertex:", f.len, "/", v.len
 
