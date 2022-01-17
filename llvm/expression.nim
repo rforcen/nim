@@ -1,14 +1,18 @@
 # expression interpreter & vm compiler run time
+# cpp backend
 
-import math, patty, strutils, nimly
+import math, patty, strutils, nimly, llvm
 
 # vm
-type 
-  pCode = enum pNIL, pPUSH, pPLUS, pMINUS, pNUM, pMULT, pDIV, pPOWER, pSIN, pCOS, pTAN, pLOG, pEXP, pARG
+const funcNames = ["sin","cos","tan","log","exp"]
 
-  Code = seq[int64]
+type 
+  pCode* = enum pNIL, pPUSH, pPLUS, pMINUS, pNUM, pMULT, pDIV, pPOWER, pSIN, pCOS, pTAN, pLOG, pEXP, pARG
+  Code* = seq[int64]
   
-var code:Code
+var 
+  code:Code
+  jit:JIT # jit must live while func addr is used
 
 proc push(code:var Code, p:pCode) = code.add(cast[int64](p))
 proc push(code:var Code, f:float) = 
@@ -18,9 +22,58 @@ proc push(code:var Code, i:int) =
   code.push(pARG)
   code.add(cast[int64](i))
 
-proc init(code:var Code)=code.setLen 0
+proc compileLLVM*(code:Code, expr:string) : (proc(x:float):float{.cdecl.}) =
+  const 
+    funcName = "expressionFunction"
 
-proc print(code:var Code)=
+  jit = newJIT("expression.module")
+  var 
+    dblt = jit.getDoubleTy
+    function = jit.CreateFunctionBlock(dblt, @[dblt], funcName)
+    fpow = jit.CreateFunction(dblt, @[dblt, dblt], "pow") # pow(x,y)
+    funcTable : Table[string, ptr Function]
+
+  var
+    stack : array[256, ptr Value] 
+    sp=0
+    i=0
+
+  # create function table
+  for f in funcNames: funcTable[f]=jit.CreateFunction(dblt, @[dblt], f.cstring)
+
+  while i<code.len:
+    let currInstr = cast[pCode](code[i])
+    case currInstr:
+    of pPUSH: i.inc; stack[sp] = jit.initDbl( cast[float](code[i]) ); sp.inc
+    of pARG: i.inc; stack[sp] = function[cast[int](code[i])]; sp.inc
+    
+    of pPLUS:  sp.dec; stack[sp-1] = jit.fadd(stack[sp-1], stack[sp])
+    of pMINUS: sp.dec; stack[sp-1] = jit.fsub(stack[sp-1], stack[sp])
+    of pMULT:  sp.dec; stack[sp-1] = jit.fmul(stack[sp-1], stack[sp])
+    of pDIV:   sp.dec; stack[sp-1] = jit.fdiv(stack[sp-1], stack[sp])
+    of pPOWER: sp.dec; stack[sp-1] = jit.fcall(fpow, @[stack[sp-1], stack[sp]])
+
+    of pSIN:   stack[sp-1]=jit.fcall(funcTable["sin"], stack[sp-1])     
+    of pCOS:   stack[sp-1]=jit.fcall(funcTable["cos"], stack[sp-1])     
+    of pTAN:   stack[sp-1]=jit.fcall(funcTable["tan"], stack[sp-1])     
+    of pLOG:   stack[sp-1]=jit.fcall(funcTable["log"], stack[sp-1])     
+    of pEXP:   stack[sp-1]=jit.fcall(funcTable["exp"], stack[sp-1])     
+  
+    else :   
+      echo i,"<err>",code[i]
+
+    i.inc
+
+  discard jit.ret(stack[sp-1])
+
+  # jit.printIR
+  # echo "function address:", jit.getFuncAddr(funcName)
+  
+  cast[(proc(x:float):float{.cdecl.})](jit.getFuncAddr(funcName))
+
+proc init*(code:var Code)=code.setLen 0
+
+proc print*(code:var Code)=
   echo "-----------------------------------"
   var i = 0
   while i<code.len:
@@ -46,7 +99,7 @@ proc print(code:var Code)=
     i.inc
   echo "-----------------------------------"
 
-proc run(code:var Code, args:varargs[float]):float=
+proc run*(code: Code, args:varargs[float]):float=
   var 
     stack:array[256,float]
     sp=0
@@ -164,6 +217,12 @@ nimy expressionParser[ExpressionTokens]:
       result = 0
       code.push(($1).index) # range not checked!
 
+proc compile*(expr:string):Code=
+  var exprLexer = expressionLexer.newWithString(expr)
+  exprLexer.ignoreIf = proc(r: ExpressionTokens): bool = r.kind == ExpressionTokensKind.IGNORE
+  var parser = expressionParser.newParser()
+  discard parser.parse(exprLexer)
+  code
 
 when isMainModule:
   import times, strformat
@@ -184,7 +243,7 @@ when isMainModule:
       t0 = now()
       n = 10_000_000
   
-    echo "benchmarking nimly - nimvm"
+    echo &"benchmarking nimvm vs. llvm {n} iters"
 
     let expr = "1*$1+2+3*$1+4+5+6+7+8+9+1+2+3+4+5+6+7+8+9+$1" #"sin(( 2 - 3.45 * $1) / 4 * 34.56) ^ 4"
     var exprLexer = expressionLexer.newWithString(expr)
@@ -196,6 +255,13 @@ when isMainModule:
     for i in 0..n:
       let _ = code.run(2.3)
 
-    echo &"nimvm: lap for:{n}:, {(now()-t0).inMilliseconds}ms, result={code.run(2.3)}, code len:{code.len}"
+    echo &"nimvm: lap:{(now()-t0).inMilliseconds:5}ms, result={code.run(2.3)}, code len:{code.len}"
   
+    let cfunc=code.compileLLVM(expr)
+    
+    t0=now()
+    for i in 0..n:
+      let _=cfunc(2.3)
+    echo &"llvm : lap:{(now()-t0).inMilliseconds:5}ms, result={cfunc(2.3)}"
+    
   bench()

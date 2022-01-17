@@ -104,7 +104,7 @@ proc llvmInit*() =
 
 ## JIT object
 
-type JIT = object
+type JIT* = object
   context* : ptr LLVMContext
   module* : ptr Module
   builder* : pointer
@@ -154,6 +154,9 @@ proc ret*(jit:JIT, p0:ptr Value):ptr Value = jit.builder.CreateRet(p0)
 proc fcall*(jit:JIT, function:ptr Function, args:seq[ptr Value]) : ptr Value =
   jit.builder.CreateCall(function, args.toCppVector)
 
+proc fcall*(jit:JIT, function:ptr Function, args:ptr Value) : ptr Value =
+  jit.builder.CreateCall(function, @[args].toCppVector)
+
 proc initDbl*(jit:JIT, d : float =0.0) : ptr Value = {.emit:"result = ConstantFP::get(Type::getDoubleTy(*(jit->context)), d);".}
 
 # convert proc() to a multiple arg/ret type proc casting:
@@ -162,7 +165,6 @@ proc getFuncAddr*(jit:JIT, name:cstring) : int64 =
   jit.engine.getFunctionAddress(name)
 
 proc printIR*(jit:JIT)=printIR(jit.module)
-
 
 # custom function list (funcs.nim) -> libfuncs.so 
 func foo*(t : float):float {.importc.}

@@ -1,22 +1,18 @@
-# expression interpreter & vm compiler run time
+# expression interpreter & llvm compiler
 
 import patty, strutils, nimly, tables
 import llvm
 
-const funcName = "Expression"
+const funcNames* = ["sin","cos","tan","log","exp"]
 
 var 
-  jit = newJIT("expr.module")
-  dblt = jit.getDoubleTy
-  function = jit.CreateFunctionBlock(dblt, @[dblt], funcName)
-  fpow = jit.CreateFunction(dblt, @[dblt, dblt], "pow") # pow(x,y)
-  funcNames = ["sin","cos","tan","log","exp"]
+  jit :JIT 
+  dblt : ptr Type 
+  function : ptr Function
+  fpow : ptr Function
   funcTable : Table[string, ptr Function]
 
-# create function table
-for f in funcNames: funcTable[f]=jit.CreateFunction(dblt, @[dblt], f.cstring)
-
-#########################
+## lexer
 variant ExpressionTokens:
   PLUS
   MINUS
@@ -49,10 +45,8 @@ niml expressionLexer[ExpressionTokens]:
 
   r"\s":  IGNORE()
 
-  setUp:
-    discard
-  tearDown:
-    discard
+  setUp:   discard
+  tearDown:discard
 
 nimy expressionParser[ExpressionTokens]:
   top[ptr Value]:
@@ -86,6 +80,27 @@ nimy expressionParser[ExpressionTokens]:
 
     ARGUMENT: function[($1).index] # range not checked!
 
+##
+proc compileLLVM*(funcName, expr:string):proc(x:float):float{.cdecl.}=
+  jit = newJIT("expr.module")
+  dblt = jit.getDoubleTy
+  fpow = jit.CreateFunction(dblt, @[dblt, dblt], "pow") # pow(x,y)
+
+  # create function table
+  for f in funcNames: funcTable[f]=jit.CreateFunction(dblt, @[dblt], f.cstring)
+
+  function = jit.CreateFunctionBlock(dblt, @[dblt], funcName)
+
+  # compile
+  var exprLexer = expressionLexer.newWithString(expr)
+  exprLexer.ignoreIf = proc(r: ExpressionTokens): bool = r.kind == ExpressionTokensKind.IGNORE
+  var parser = expressionParser.newParser()
+ 
+  discard parser.parse(exprLexer)
+    
+  # func address
+  let func_addr = jit.getFuncAddr(funcName)
+  cast[proc(t: float):float {.cdecl.}] ( func_addr )
 
 when isMainModule:
   import times, strformat
@@ -94,26 +109,29 @@ when isMainModule:
   
     echo "benchmarking nimly-llvm"
 
-    let expr = "1*$1+2+3*$1+4+5+6+7+8+9+1+2+3+4+5+6+7+8+9+$1" #"sin(( 2 - 3.45 * $1 ) / 4 * 34.56) ^ 4"
-    var exprLexer = expressionLexer.newWithString(expr)
-    exprLexer.ignoreIf = proc(r: ExpressionTokens): bool = r.kind == ExpressionTokensKind.IGNORE
-    var parser = expressionParser.newParser()
- 
-    discard parser.parse(exprLexer)
+    let
+      expr = "((cos((log((1.24+$1))))+$1+$1*$1+7.97*$1*$1+$1*6.09))" # "1*$1+2+3*$1+4+5+6+7+8+9+1+2+3+4+5+6+7+8+9+$1" #"sin(( 2 - 3.45 * $1 ) / 4 * 34.56) ^ 4"
+      cfunc = compileLLVM("foo",expr)
     
     jit.printIR()
+    let
+      t = 2.3
+      n = 10_000_000
+      t0 = now()
 
-    let func_addr = jit.getFuncAddr(funcName)
-    if func_addr!=0:
-      let 
-        cfunc = cast[proc(t: float):float {.cdecl.}] ( func_addr )
-        t = 2.3
-        n = 10_000_000
-        t0 = now()
-
-      for _ in 0..n:
-        let _ = cfunc(t)
+    for _ in 0..n:
+      let _ = cfunc(t)
       
-      echo &"llvm lap for {n}:{(now()-t0).inMilliseconds}ms, {expr}({t})={cfunc(t)}"
+    echo &"llvm lap for {n}:{(now()-t0).inMilliseconds}ms, {expr}({t})={cfunc(t)}"
     
-  testLlvmExpr()
+  proc testMultFunc=
+    let f00=compileLLVM("f00","1+2*sin(34*$1)")
+    echo f00(1.0)
+    let f01=compileLLVM("f01","3+4/tan(sin($1*45))")
+    echo f01(1.0)
+
+    # jit.printIR()
+
+  
+  testMultFunc()
+  # testLlvmExpr()
